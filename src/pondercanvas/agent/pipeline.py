@@ -1,9 +1,14 @@
 import uuid
 from datetime import UTC, datetime
+from typing import Literal
 
 from pondercanvas.agent import state_keys as sk
 from pondercanvas.agent.extraction import extract_generation_brief
-from pondercanvas.agent.refinement import run_fast_refinement, run_thinking_refinement
+from pondercanvas.agent.refinement import (
+    run_fast_refinement,
+    run_instant_generation,
+    run_thinking_refinement,
+)
 from pondercanvas.agent.tools.evaluation_tool import make_evaluate_image_tool
 from pondercanvas.agent.tools.generation_tool import make_generate_image_tool
 from pondercanvas.config.settings import EffectiveSettings
@@ -25,9 +30,10 @@ _IMAGE_PROVIDER_KEY_FIELD = {
 
 class PonderCanvasPipeline:
     """Top-level orchestrator: extraction and reference-gathering run once as
-    plain pre-steps, then the configured refinement mode ("fast" for-loop or
-    "thinking" LoopAgent) drives generate -> evaluate -> repeat up to
-    settings.max_iterations."""
+    plain pre-steps, then the configured refinement mode drives image
+    generation: "fast" (plain for-loop) or "thinking" (LoopAgent) run
+    generate -> evaluate -> repeat up to settings.max_iterations, while
+    "instant" skips the loop and generates a single image."""
 
     def __init__(self, settings: EffectiveSettings):
         self.settings = settings
@@ -79,6 +85,8 @@ class PonderCanvasPipeline:
                 settings.max_iterations,
                 prompt,
             )
+        elif settings.refinement_mode == "instant":
+            final_state = run_instant_generation(generation_tool, initial_state)
         else:
             final_state = run_fast_refinement(
                 generation_tool, evaluation_tool, initial_state, settings.max_iterations
@@ -106,6 +114,14 @@ def _assemble_run_trace(
     last_evaluation = state.get(sk.LAST_EVALUATION)
     passed = bool(last_evaluation and last_evaluation.get("pass"))
 
+    stopped_reason: Literal["passed", "max_iterations_reached", "instant"]
+    if settings.refinement_mode == "instant":
+        stopped_reason = "instant"
+    elif passed:
+        stopped_reason = "passed"
+    else:
+        stopped_reason = "max_iterations_reached"
+
     return RunTrace(
         run_id=str(uuid.uuid4()),
         brief=brief,
@@ -113,7 +129,7 @@ def _assemble_run_trace(
         iterations=iterations,
         final_image_path=state.get(sk.LAST_IMAGE_PATH),
         passed=passed,
-        stopped_reason="passed" if passed else "max_iterations_reached",
+        stopped_reason=stopped_reason,
         settings_snapshot=settings.redacted(),
         created_at=datetime.now(UTC),
     )

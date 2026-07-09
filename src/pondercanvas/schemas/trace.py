@@ -23,6 +23,6 @@ class RunTrace(BaseModel):
     iterations: list[IterationTrace] = Field(default_factory=list)
     final_image_path: str | None = None
     passed: bool = False
-    stopped_reason: Literal["passed", "max_iterations_reached", "error"]
+    stopped_reason: Literal["passed", "max_iterations_reached", "instant", "error"]
     settings_snapshot: dict = Field(default_factory=dict)
     created_at: datetime

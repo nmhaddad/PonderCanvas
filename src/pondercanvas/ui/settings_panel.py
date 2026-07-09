@@ -92,7 +92,8 @@ def build_settings_panel() -> list[gr.components.Component]:
             "**fast** runs it as a plain loop and stops the moment an evaluation "
             "passes -- no extra model calls for orchestration. **thinking** drives "
             "it through the agent loop (an extra chat-model call per iteration) and "
-            "is where richer reasoning will grow over time."
+            "is where richer reasoning will grow over time. **instant** skips the "
+            "loop and evaluation entirely, generating a single image."
         )
         with gr.Row():
             refinement_mode = gr.Dropdown(

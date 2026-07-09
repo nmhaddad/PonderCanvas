@@ -100,6 +100,27 @@ class TestPipelineStatePropagation:
         assert trace.stopped_reason == "passed"
         assert len(trace.iterations) == 3
 
+    async def test_instant_mode_generates_a_single_image_with_no_evaluation(
+        self, tmp_path, monkeypatch
+    ):
+        structured_provider, image_provider = _patch_pipeline_providers(
+            monkeypatch, eval_results=[]
+        )
+
+        settings = _effective(tmp_path, refinement_mode="instant")
+        pipeline = pipeline_module.PonderCanvasPipeline(settings)
+        trace = await pipeline.run("draw a red bicycle", [])
+
+        assert trace.passed is False
+        assert trace.stopped_reason == "instant"
+        assert len(trace.iterations) == 1
+        assert trace.iterations[0].evaluation is None
+        assert trace.final_image_path is not None
+        # extract_generation_brief consumes one structured-provider call; the
+        # instant path must not consume a second one for evaluation.
+        assert len(structured_provider.calls) == 1
+        assert len(image_provider.calls) == 1
+
     async def test_fast_mode_does_not_build_a_chat_model(self, tmp_path, monkeypatch):
         _patch_pipeline_providers(monkeypatch, eval_results=[_passing_eval()])
 

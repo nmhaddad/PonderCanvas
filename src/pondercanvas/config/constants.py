@@ -7,8 +7,9 @@ IMAGE_PROVIDERS: Final[tuple[str, ...]] = ("gemini", "openai", "stability")
 # "fast" runs generate -> evaluate in a plain Python for-loop and reads the
 # stop/continue decision straight from evaluation state (no per-iteration LLM
 # calls). "thinking" drives the same steps through ADK's LoopAgent and will
-# grow richer reasoning over time. See pondercanvas.agent.refinement.
-REFINEMENT_MODES: Final[tuple[str, ...]] = ("fast", "thinking")
+# grow richer reasoning over time. "instant" skips the loop entirely: one
+# generate call, no evaluation. See pondercanvas.agent.refinement.
+REFINEMENT_MODES: Final[tuple[str, ...]] = ("fast", "thinking", "instant")
 DEFAULT_REFINEMENT_MODE: Final[str] = "fast"
 
 DEFAULT_CHAT_PROVIDER: Final[str] = "gemini"

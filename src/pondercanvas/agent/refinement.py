@@ -1,5 +1,5 @@
-"""Two interchangeable strategies for the generate -> evaluate -> repeat
-refinement loop. Both consume the same generate/evaluate tools and leave
+"""Interchangeable strategies for turning a prepared brief into a final
+image. All three consume the same generate/evaluate tools and leave
 identical session state behind, so downstream trace assembly is mode-agnostic.
 
 "thinking" drives generate -> evaluate -> control through ADK's LoopAgent:
@@ -11,6 +11,10 @@ stop/continue decision straight from evaluation state
 (`last_evaluation["pass"]`, already computed in `evaluate_image`). That
 deterministic check needs no model, so fast spends zero LLM calls on
 orchestration -- see GitHub issue #4.
+
+"instant" skips the loop entirely: a single generate call, no evaluation.
+For callers who just want one image out of the preloop work (extraction +
+grounding) with no refinement spend at all.
 """
 
 from collections.abc import Callable
@@ -69,6 +73,18 @@ def run_fast_refinement(
         last_evaluation = state.get(sk.LAST_EVALUATION) or {}
         if last_evaluation.get("pass"):
             break
+    return state
+
+
+def run_instant_generation(
+    generation_tool: RefinementTool,
+    initial_state: dict,
+) -> dict:
+    """Run a single generation call with no evaluation and no loop. Returns
+    the final state dict."""
+    state = dict(initial_state)
+    context = _FastToolContext(state)
+    generation_tool(context)
     return state
 
 
