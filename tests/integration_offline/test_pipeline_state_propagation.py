@@ -198,6 +198,42 @@ class TestPipelineStatePropagation:
         assert trace.stopped_reason == "max_iterations_reached"
         assert len(trace.iterations) == 2
 
+    async def test_final_image_is_the_best_scoring_iteration_not_the_last(self, tmp_path, monkeypatch):
+        # First iteration scores higher than the ones after it, but the run
+        # never passes -- the final image should be the best-scoring
+        # attempt, not just whichever happened to run last.
+        _patch_pipeline_providers(
+            monkeypatch,
+            eval_results=[
+                _failing_eval(overall=3.5),
+                _failing_eval(overall=2.0),
+                _failing_eval(overall=1.0),
+            ],
+        )
+
+        pipeline = pipeline_module.PonderCanvasPipeline(_effective(tmp_path, max_iterations=3))
+        trace = await pipeline.run("draw a red bicycle", [])
+
+        assert trace.passed is False
+        assert len(trace.iterations) == 3
+        assert trace.final_image_path == trace.iterations[0].image_path
+        assert trace.final_image_path != trace.iterations[-1].image_path
+
+    async def test_final_image_is_the_passing_iteration_when_one_passes(self, tmp_path, monkeypatch):
+        # Passing stops the loop immediately, so the passing iteration is
+        # always the last one recorded -- final image should be that one
+        # even though an earlier failing attempt might have scored close.
+        _patch_pipeline_providers(
+            monkeypatch,
+            eval_results=[_failing_eval(overall=3.9), _passing_eval(overall=4.0)],
+        )
+
+        pipeline = pipeline_module.PonderCanvasPipeline(_effective(tmp_path))
+        trace = await pipeline.run("draw a red bicycle", [])
+
+        assert trace.passed is True
+        assert trace.final_image_path == trace.iterations[-1].image_path
+
     async def test_settings_snapshot_redacts_api_key(self, tmp_path, monkeypatch):
         _patch_pipeline_providers(monkeypatch, eval_results=[_passing_eval()])
 

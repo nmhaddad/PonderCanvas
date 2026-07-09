@@ -155,9 +155,31 @@ def _assemble_run_trace(
         brief=brief,
         grounding=grounding,
         iterations=iterations,
-        final_image_path=state.get(sk.LAST_IMAGE_PATH),
+        final_image_path=_best_image_path(iterations, passed),
         passed=passed,
         stopped_reason=stopped_reason,
         settings_snapshot=settings.redacted(),
         created_at=datetime.now(UTC),
     )
+
+
+def _best_image_path(iterations: list[IterationTrace], passed: bool) -> str | None:
+    """The image shown to the user as the final result. If the run passed,
+    the loop already stopped at that iteration, so it's the last one. If it
+    never passed, use whichever iteration scored highest rather than
+    whichever ran last -- a later revision can score worse than an earlier
+    attempt, and the user should see the best result the run produced, not
+    just its last attempt."""
+    if not iterations:
+        return None
+    if passed:
+        return iterations[-1].image_path
+    scored = [it for it in iterations if it.evaluation]
+    if not scored:
+        return iterations[-1].image_path
+    return max(scored, key=_iteration_score).image_path
+
+
+def _iteration_score(it: IterationTrace) -> float:
+    assert it.evaluation is not None
+    return it.evaluation.overall

@@ -1,5 +1,7 @@
 from datetime import UTC, datetime
 
+from PIL import Image
+
 from pondercanvas.schemas.evaluation import EvaluationResult
 from pondercanvas.schemas.grounding import GroundingResult, PhotoAttribution
 from pondercanvas.schemas.trace import IterationTrace, RunTrace
@@ -21,11 +23,11 @@ def _trace(**overrides) -> RunTrace:
     return RunTrace(**defaults)
 
 
-def _iteration(idx, passing, feedback="fb", overall=4.0) -> IterationTrace:
+def _iteration(idx, passing, feedback="fb", overall=4.0, image_path=None) -> IterationTrace:
     return IterationTrace(
         iteration_index=idx,
         prompt_used="p",
-        image_path=f"/tmp/{idx}.png",
+        image_path=image_path or f"/tmp/{idx}.png",
         evaluation=EvaluationResult(
             scores={
                 "prompt_adherence": overall,
@@ -142,3 +144,42 @@ class TestRenderTrace:
         html_out = render_trace(trace)
         assert "<script>alert" not in html_out
         assert "&lt;script&gt;" in html_out
+
+
+class TestRenderTraceThumbnails:
+    def test_missing_image_file_renders_no_thumbnail_without_crashing(self):
+        # Every other test in this file uses fabricated /tmp/N.png paths
+        # that don't exist on disk -- this asserts that's safe by design,
+        # not just incidentally not-crashing.
+        html_out = render_trace(_trace(iterations=[_iteration(0, True)]))
+        assert "<img" not in html_out
+
+    def test_real_image_file_renders_an_inline_thumbnail(self, tmp_path):
+        image_path = tmp_path / "iteration_0.png"
+        Image.new("RGB", (200, 200), color="red").save(image_path)
+        trace = _trace(iterations=[_iteration(0, True, image_path=str(image_path))])
+
+        html_out = render_trace(trace)
+
+        assert '<img src="data:image/jpeg;base64,' in html_out
+
+    def test_final_iteration_is_labeled(self, tmp_path):
+        image_path = tmp_path / "iteration_0.png"
+        Image.new("RGB", (10, 10), color="blue").save(image_path)
+        trace = _trace(
+            iterations=[_iteration(0, True, image_path=str(image_path))],
+            final_image_path=str(image_path),
+        )
+
+        html_out = render_trace(trace)
+
+        assert "(final)" in html_out
+
+    def test_non_final_iteration_is_not_labeled(self):
+        # final_image_path unset (None) -- an iteration's real path never
+        # equals None, so nothing should be marked final.
+        trace = _trace(iterations=[_iteration(0, True)])
+
+        html_out = render_trace(trace)
+
+        assert "(final)" not in html_out
