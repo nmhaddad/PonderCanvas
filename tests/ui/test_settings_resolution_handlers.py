@@ -15,6 +15,7 @@ def _call(**overrides):
         unsplash_api_key="",
         gemini_image_api_key="",
         gemini_image_enterprise=False,
+        refinement_mode="",
         max_iterations=0,
         eval_pass_threshold=0.0,
         siglip_enabled=False,
@@ -101,6 +102,14 @@ class TestFieldsToOverlay:
     def test_gemini_image_enterprise_false_passes_through(self):
         overlay = _call(gemini_image_enterprise=False)
         assert overlay.gemini_image_enterprise is False
+
+    def test_refinement_mode_passes_through(self):
+        overlay = _call(refinement_mode="thinking")
+        assert overlay.refinement_mode == "thinking"
+
+    def test_blank_refinement_mode_becomes_none(self):
+        overlay = _call(refinement_mode="")
+        assert overlay.refinement_mode is None
 
 
 class TestOverlayFeedsIntoResolveSettings:

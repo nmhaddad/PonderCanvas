@@ -193,6 +193,34 @@ class TestRedaction:
         assert effective.google_api_key == "g-key"
 
 
+class TestRefinementMode:
+    def test_defaults_to_fast(self):
+        effective = resolve_settings(_base())
+        assert effective.refinement_mode == "fast"
+
+    def test_env_derived_base_can_select_thinking(self):
+        base = _base(refinement_mode="thinking")
+        effective = resolve_settings(base)
+        assert effective.refinement_mode == "thinking"
+
+    def test_overlay_wins_over_base(self):
+        base = _base(refinement_mode="fast")
+        overlay = RuntimeSettingsOverlay(refinement_mode="thinking")
+        effective = resolve_settings(base, overlay)
+        assert effective.refinement_mode == "thinking"
+
+    def test_unknown_mode_falls_back_to_default(self):
+        base = _base(refinement_mode="nonsense")
+        effective = resolve_settings(base)
+        assert effective.refinement_mode == "fast"
+
+    def test_overlay_none_defers_to_base(self):
+        base = _base(refinement_mode="thinking")
+        overlay = RuntimeSettingsOverlay(chat_provider="anthropic")  # refinement_mode untouched
+        effective = resolve_settings(base, overlay)
+        assert effective.refinement_mode == "thinking"
+
+
 class TestNonOverridableFields:
     def test_structured_model_id_always_comes_from_base(self):
         # No overlay field exists for structured_model_id: extraction/eval

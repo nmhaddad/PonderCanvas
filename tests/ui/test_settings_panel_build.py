@@ -41,6 +41,11 @@ class TestBuildSettingsPanelReflectsEnvDefaults:
         fields = _build_fields_by_name()
         assert fields["max_iterations"].value == 2
 
+    def test_refinement_mode_dropdown_reflects_env_value(self, monkeypatch):
+        monkeypatch.setenv("PONDERCANVAS_REFINEMENT_MODE", "thinking")
+        fields = _build_fields_by_name()
+        assert fields["refinement_mode"].value == "thinking"
+
     def test_api_key_fields_stay_blank_even_when_set_in_env(self, monkeypatch):
         # Secrets must never be pre-filled into page HTML/DOM.
         monkeypatch.setenv("PONDERCANVAS_GOOGLE_API_KEY", "should-not-appear-in-page")

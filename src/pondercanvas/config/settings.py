@@ -16,11 +16,13 @@ from pondercanvas.config.constants import (
     DEFAULT_MAX_ITERATIONS,
     DEFAULT_MAX_REFERENCE_DOWNLOADS,
     DEFAULT_OUTPUT_DIR,
+    DEFAULT_REFINEMENT_MODE,
     DEFAULT_SIGLIP_ENABLED,
     DEFAULT_SIGLIP_WEIGHT,
     DEFAULT_STRUCTURED_MODEL_ID,
     MAX_ITERATIONS_CAP,
     REDACTED_MARKER,
+    REFINEMENT_MODES,
     SECRET_FIELD_SUFFIX,
 )
 
@@ -49,6 +51,7 @@ class AppSettings(BaseSettings):
     gemini_image_api_key: SecretStr | None = None
     gemini_image_enterprise: bool = DEFAULT_GEMINI_IMAGE_ENTERPRISE
 
+    refinement_mode: str = DEFAULT_REFINEMENT_MODE
     max_iterations: int = DEFAULT_MAX_ITERATIONS
     eval_pass_threshold: float = DEFAULT_EVAL_PASS_THRESHOLD
     aspect_ratio: str = DEFAULT_ASPECT_RATIO
@@ -79,6 +82,7 @@ class RuntimeSettingsOverlay(BaseModel):
     gemini_image_api_key: str | None = None
     gemini_image_enterprise: bool | None = None
 
+    refinement_mode: str | None = None
     max_iterations: int | None = None
     eval_pass_threshold: float | None = None
 
@@ -103,6 +107,7 @@ class EffectiveSettings(BaseModel):
     gemini_image_api_key: str | None
     gemini_image_enterprise: bool
 
+    refinement_mode: str
     max_iterations: int
     eval_pass_threshold: float
     aspect_ratio: str
@@ -143,6 +148,10 @@ def resolve_settings(
     siglip_weight = _pick(overlay.siglip_weight, base.siglip_weight)
     siglip_weight = max(0.0, min(siglip_weight, 1.0))
 
+    refinement_mode = _pick(overlay.refinement_mode, base.refinement_mode)
+    if refinement_mode not in REFINEMENT_MODES:
+        refinement_mode = DEFAULT_REFINEMENT_MODE
+
     google_api_key = _pick(overlay.google_api_key, _secret_value(base.google_api_key))
     # Gemini image generation sometimes needs a distinct key from the shared
     # one (e.g. Enterprise/Vertex mode vs. Generative Language API key
@@ -168,6 +177,7 @@ def resolve_settings(
         gemini_image_enterprise=_pick(
             overlay.gemini_image_enterprise, base.gemini_image_enterprise
         ),
+        refinement_mode=refinement_mode,
         max_iterations=max_iterations,
         eval_pass_threshold=_pick(overlay.eval_pass_threshold, base.eval_pass_threshold),
         aspect_ratio=base.aspect_ratio,

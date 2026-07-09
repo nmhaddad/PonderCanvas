@@ -1,6 +1,11 @@
 import gradio as gr
 
-from pondercanvas.config.constants import CHAT_PROVIDERS, IMAGE_PROVIDERS, MAX_ITERATIONS_CAP
+from pondercanvas.config.constants import (
+    CHAT_PROVIDERS,
+    IMAGE_PROVIDERS,
+    MAX_ITERATIONS_CAP,
+    REFINEMENT_MODES,
+)
 from pondercanvas.config.settings import AppSettings, RuntimeSettingsOverlay
 
 # Order here must match the positional argument order of fields_to_overlay
@@ -18,6 +23,7 @@ SETTINGS_FIELD_ORDER = (
     "unsplash_api_key",
     "gemini_image_api_key",
     "gemini_image_enterprise",
+    "refinement_mode",
     "max_iterations",
     "eval_pass_threshold",
     "siglip_enabled",
@@ -81,7 +87,19 @@ def build_settings_panel() -> list[gr.components.Component]:
             type="password",
         )
 
+        gr.Markdown(
+            "Refinement mode picks how the generate/evaluate loop is driven. "
+            "**fast** runs it as a plain loop and stops the moment an evaluation "
+            "passes -- no extra model calls for orchestration. **thinking** drives "
+            "it through the agent loop (an extra chat-model call per iteration) and "
+            "is where richer reasoning will grow over time."
+        )
         with gr.Row():
+            refinement_mode = gr.Dropdown(
+                choices=list(REFINEMENT_MODES),
+                value=defaults.refinement_mode,
+                label="Refinement mode",
+            )
             max_iterations = gr.Slider(
                 1,
                 MAX_ITERATIONS_CAP,
@@ -120,6 +138,7 @@ def build_settings_panel() -> list[gr.components.Component]:
         unsplash_api_key,
         gemini_image_api_key,
         gemini_image_enterprise,
+        refinement_mode,
         max_iterations,
         eval_pass_threshold,
         siglip_enabled,
@@ -139,6 +158,7 @@ def fields_to_overlay(
     unsplash_api_key: str,
     gemini_image_api_key: str,
     gemini_image_enterprise: bool,
+    refinement_mode: str,
     max_iterations: float | int,
     eval_pass_threshold: float,
     siglip_enabled: bool,
@@ -163,6 +183,7 @@ def fields_to_overlay(
         unsplash_api_key=blank_to_none(unsplash_api_key),
         gemini_image_api_key=blank_to_none(gemini_image_api_key),
         gemini_image_enterprise=gemini_image_enterprise,
+        refinement_mode=blank_to_none(refinement_mode),
         max_iterations=int(max_iterations) if max_iterations else None,
         eval_pass_threshold=float(eval_pass_threshold) if eval_pass_threshold else None,
         siglip_enabled=siglip_enabled,

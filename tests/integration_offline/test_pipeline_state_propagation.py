@@ -85,6 +85,36 @@ class TestPipelineStatePropagation:
         assert len(trace.iterations) == 1
         assert trace.final_image_path is not None
 
+    async def test_thinking_mode_drives_loop_agent_to_the_same_result(self, tmp_path, monkeypatch):
+        # The "thinking" LoopAgent path must leave the same state behind as the
+        # default "fast" for-loop: fails twice, then passes on the 3rd.
+        _patch_pipeline_providers(
+            monkeypatch, eval_results=[_failing_eval(), _failing_eval(), _passing_eval()]
+        )
+
+        settings = _effective(tmp_path, refinement_mode="thinking")
+        pipeline = pipeline_module.PonderCanvasPipeline(settings)
+        trace = await pipeline.run("draw a red bicycle", [])
+
+        assert trace.passed is True
+        assert trace.stopped_reason == "passed"
+        assert len(trace.iterations) == 3
+
+    async def test_fast_mode_does_not_build_a_chat_model(self, tmp_path, monkeypatch):
+        _patch_pipeline_providers(monkeypatch, eval_results=[_passing_eval()])
+
+        calls: list[object] = []
+        monkeypatch.setattr(
+            pipeline_module,
+            "build_chat_model",
+            lambda settings: calls.append(settings) or PipelineFakeLlm(model="fake"),
+        )
+
+        pipeline = pipeline_module.PonderCanvasPipeline(_effective(tmp_path))  # fast is default
+        await pipeline.run("draw a red bicycle", [])
+
+        assert calls == []
+
     async def test_grounding_is_recorded_in_trace(self, tmp_path, monkeypatch):
         _patch_pipeline_providers(monkeypatch, eval_results=[_passing_eval()])
 

@@ -1,18 +1,9 @@
 import uuid
 from datetime import UTC, datetime
 
-from google.adk.runners import InMemoryRunner
-from google.genai import types
-
 from pondercanvas.agent import state_keys as sk
-from pondercanvas.agent.agents import (
-    build_evaluation_agent,
-    build_generation_agent,
-    build_loop_control_agent,
-    build_refinement_loop,
-)
 from pondercanvas.agent.extraction import extract_generation_brief
-from pondercanvas.agent.tools.control import exit_loop
+from pondercanvas.agent.refinement import run_fast_refinement, run_thinking_refinement
 from pondercanvas.agent.tools.evaluation_tool import make_evaluate_image_tool
 from pondercanvas.agent.tools.generation_tool import make_generate_image_tool
 from pondercanvas.config.settings import EffectiveSettings
@@ -31,14 +22,12 @@ _IMAGE_PROVIDER_KEY_FIELD = {
     "stability": "stability_api_key",
 }
 
-_APP_NAME = "pondercanvas"
-_USER_ID = "local"
-
 
 class PonderCanvasPipeline:
     """Top-level orchestrator: extraction and reference-gathering run once as
-    plain pre-steps, then ADK's LoopAgent drives generate -> evaluate ->
-    control up to settings.max_iterations."""
+    plain pre-steps, then the configured refinement mode ("fast" for-loop or
+    "thinking" LoopAgent) drives generate -> evaluate -> repeat up to
+    settings.max_iterations."""
 
     def __init__(self, settings: EffectiveSettings):
         self.settings = settings
@@ -75,39 +64,27 @@ class PonderCanvasPipeline:
             siglip_weight=settings.siglip_weight,
         )
 
-        chat_model = build_chat_model(settings)
-        loop = build_refinement_loop(
-            [
-                build_generation_agent(chat_model, generation_tool),
-                build_evaluation_agent(chat_model, evaluation_tool),
-                build_loop_control_agent(chat_model, exit_loop),
-            ],
-            max_iterations=settings.max_iterations,
-        )
+        initial_state = {
+            sk.BRIEF: brief.model_dump(),
+            sk.GROUNDING_RESULT: grounding.model_dump(),
+            sk.REFERENCE_IMAGE_BYTES: all_reference_images,
+        }
 
-        runner = InMemoryRunner(agent=loop, app_name=_APP_NAME)
-        session = await runner.session_service.create_session(
-            app_name=_APP_NAME,
-            user_id=_USER_ID,
-            state={
-                sk.BRIEF: brief.model_dump(),
-                sk.GROUNDING_RESULT: grounding.model_dump(),
-                sk.REFERENCE_IMAGE_BYTES: all_reference_images,
-            },
-        )
-        async for _event in runner.run_async(
-            user_id=_USER_ID,
-            session_id=session.id,
-            new_message=types.Content(role="user", parts=[types.Part(text=prompt)]),
-        ):
-            pass
+        if settings.refinement_mode == "thinking":
+            final_state = await run_thinking_refinement(
+                build_chat_model(settings),
+                generation_tool,
+                evaluation_tool,
+                initial_state,
+                settings.max_iterations,
+                prompt,
+            )
+        else:
+            final_state = run_fast_refinement(
+                generation_tool, evaluation_tool, initial_state, settings.max_iterations
+            )
 
-        final_session = await runner.session_service.get_session(
-            app_name=_APP_NAME, user_id=_USER_ID, session_id=session.id
-        )
-        if final_session is None:
-            raise RuntimeError(f"Session {session.id!r} disappeared during pipeline run")
-        trace = _assemble_run_trace(brief, grounding, final_session.state, settings)
+        trace = _assemble_run_trace(brief, grounding, final_state, settings)
         log_run_trace(trace, settings.output_dir / "runs.jsonl")
         return trace
 

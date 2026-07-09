@@ -4,6 +4,13 @@ from typing import Final
 CHAT_PROVIDERS: Final[tuple[str, ...]] = ("gemini", "openai", "anthropic")
 IMAGE_PROVIDERS: Final[tuple[str, ...]] = ("gemini", "openai", "stability")
 
+# "fast" runs generate -> evaluate in a plain Python for-loop and reads the
+# stop/continue decision straight from evaluation state (no per-iteration LLM
+# calls). "thinking" drives the same steps through ADK's LoopAgent and will
+# grow richer reasoning over time. See pondercanvas.agent.refinement.
+REFINEMENT_MODES: Final[tuple[str, ...]] = ("fast", "thinking")
+DEFAULT_REFINEMENT_MODE: Final[str] = "fast"
+
 DEFAULT_CHAT_PROVIDER: Final[str] = "gemini"
 DEFAULT_CHAT_MODEL_ID: Final[str] = "gemini-3.5-flash"
 DEFAULT_IMAGE_PROVIDER: Final[str] = "gemini"

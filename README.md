@@ -19,13 +19,13 @@ User prompt + reference images
         │                             + Unsplash reference photos (real image URLs, downloaded)
         ▼
  ┌─────────────────────────────────────────────┐
- │  LoopAgent (max_iterations, default 5)       │
+ │  Refinement loop (max_iterations, default 5) │
  │                                               │
- │   GenerationAgent  → generate_image tool      │
- │   EvaluationAgent  → evaluate_image tool      │  ADK LlmAgents, driven by your
- │   LoopControlAgent → exit_loop tool           │  chosen chat model
- │                                               │
+ │   generate_image → evaluate_image → repeat    │
  │   loop exits early once evaluation passes     │
+ │                                               │
+ │   fast: plain Python for-loop (default)       │
+ │   thinking: ADK LoopAgent of LlmAgents        │
  └─────────────────────────────────────────────┘
         │
         ▼
@@ -35,7 +35,9 @@ User prompt + reference images
 Two design choices worth knowing about:
 
 - **Extraction and evaluation always use Gemini**, independent of your chosen chat/image provider — they rely on Gemini's structured JSON output and (for grounding) Gemini's Google Search tool, neither of which has an equivalent in this project's other providers yet.
-- **The generate/evaluate/control loop is a real `google.adk.agents.LoopAgent`**, not a hand-rolled Python loop — each step is an ADK `LlmAgent` backed by your chosen chat model, and the loop ends early via ADK's `escalate` mechanism (an `exit_loop` tool call) the moment an evaluation passes.
+- **The refinement loop has two selectable modes** (`PONDERCANVAS_REFINEMENT_MODE` or the "Refinement mode" dropdown in Settings; see `agent/refinement.py`):
+  - **`fast`** (default) runs `generate_image → evaluate_image` in a plain Python `for` loop and stops the moment an evaluation passes. The stop/continue decision is already computed in Python (`evaluate_image`'s `pass` flag) and the evaluator's feedback reaches the next generation through session state, so this needs **zero LLM calls for orchestration**.
+  - **`thinking`** drives the same two steps plus a `LoopControlAgent` through a real `google.adk.agents.LoopAgent` — each step is an ADK `LlmAgent` backed by your chosen chat model, and the loop ends early via ADK's `escalate` mechanism (an `exit_loop` tool call). It costs an extra chat-model round-trip per step and is the seam where richer, LLM-mediated loop reasoning will grow.
 
 Both the **chat model** (drives the agent's tool-calling reasoning) and the **image-generation model** are swappable independently, via environment variables or live in the Settings panel:
 
@@ -124,6 +126,7 @@ src/pondercanvas/
 │   ├── extraction.py   pre-loop: prompt/images -> GenerationBrief
 │   ├── tools/           generate_image, evaluate_image, exit_loop (ADK tool functions)
 │   ├── agents.py        builds the GenerationAgent/EvaluationAgent/LoopControlAgent/LoopAgent tree
+│   ├── refinement.py    run_fast_refinement (for-loop) + run_thinking_refinement (LoopAgent)
 │   └── pipeline.py      PonderCanvasPipeline: ties extraction -> grounding -> loop -> RunTrace
 └── ui/                  Gradio app + settings panel + trace renderer
 
