@@ -1,6 +1,7 @@
 import pytest
 
 from pondercanvas.agent import pipeline as pipeline_module
+from pondercanvas.agent import state_keys as sk
 from pondercanvas.agent.extraction import _ExtractedFields
 from pondercanvas.config.settings import AppSettings, resolve_settings
 from pondercanvas.schemas.evaluation import EvaluationResult
@@ -85,9 +86,9 @@ class TestPipelineStatePropagation:
         assert len(trace.iterations) == 1
         assert trace.final_image_path is not None
 
-    async def test_thinking_mode_drives_loop_agent_to_the_same_result(self, tmp_path, monkeypatch):
-        # The "thinking" LoopAgent path must leave the same state behind as the
-        # default "fast" for-loop: fails twice, then passes on the 3rd.
+    async def test_thinking_mode_drives_workflow_graph_to_the_same_result(self, tmp_path, monkeypatch):
+        # The "thinking" Workflow-graph path must leave the same state behind
+        # as the default "fast" for-loop: fails twice, then passes on the 3rd.
         _patch_pipeline_providers(
             monkeypatch, eval_results=[_failing_eval(), _failing_eval(), _passing_eval()]
         )
@@ -120,6 +121,49 @@ class TestPipelineStatePropagation:
         # instant path must not consume a second one for evaluation.
         assert len(structured_provider.calls) == 1
         assert len(image_provider.calls) == 1
+
+    async def test_thinking_mode_attaches_only_search_web_when_no_unsplash_key(
+        self, tmp_path, monkeypatch
+    ):
+        _patch_pipeline_providers(monkeypatch, eval_results=[_passing_eval()])
+        captured: dict = {}
+
+        async def fake_run_thinking_refinement(
+            chat_model, generation_tool, evaluation_tool, initial_state, max_iterations, prompt,
+            *research_tools,
+        ):
+            captured["count"] = len(research_tools)
+            return {sk.LAST_IMAGE_PATH: "x", sk.ITERATIONS: [], sk.LAST_EVALUATION: {"pass": True}}
+
+        monkeypatch.setattr(pipeline_module, "run_thinking_refinement", fake_run_thinking_refinement)
+
+        # _effective() defaults to a google_api_key but no unsplash_api_key.
+        settings = _effective(tmp_path, refinement_mode="thinking")
+        pipeline = pipeline_module.PonderCanvasPipeline(settings)
+        await pipeline.run("draw a red bicycle", [])
+
+        assert captured["count"] == 1
+
+    async def test_thinking_mode_attaches_both_research_tools_when_both_keys_configured(
+        self, tmp_path, monkeypatch
+    ):
+        _patch_pipeline_providers(monkeypatch, eval_results=[_passing_eval()])
+        captured: dict = {}
+
+        async def fake_run_thinking_refinement(
+            chat_model, generation_tool, evaluation_tool, initial_state, max_iterations, prompt,
+            *research_tools,
+        ):
+            captured["count"] = len(research_tools)
+            return {sk.LAST_IMAGE_PATH: "x", sk.ITERATIONS: [], sk.LAST_EVALUATION: {"pass": True}}
+
+        monkeypatch.setattr(pipeline_module, "run_thinking_refinement", fake_run_thinking_refinement)
+
+        settings = _effective(tmp_path, refinement_mode="thinking", unsplash_api_key="u-key")
+        pipeline = pipeline_module.PonderCanvasPipeline(settings)
+        await pipeline.run("draw a red bicycle", [])
+
+        assert captured["count"] == 2
 
     async def test_fast_mode_does_not_build_a_chat_model(self, tmp_path, monkeypatch):
         _patch_pipeline_providers(monkeypatch, eval_results=[_passing_eval()])
@@ -200,3 +244,37 @@ class TestPipelineStatePropagation:
         await pipeline.run("draw a red bicycle", [b"user-uploaded-photo"])
 
         assert image_provider.calls[0]["reference_images"] == [b"user-uploaded-photo"]
+
+
+class TestAssembleRunTraceMergesMidLoopAttributions:
+    def test_photo_attributions_collected_mid_loop_are_folded_into_grounding(self, tmp_path):
+        brief = sample_brief()
+        grounding = GroundingResult(summary_text="preloop grounding")
+        state = {
+            sk.ITERATIONS: [],
+            sk.PHOTO_ATTRIBUTIONS: [
+                {
+                    "photographer_name": "Alice",
+                    "photographer_profile_url": "https://unsplash.com/@alice",
+                    "photo_page_url": "https://unsplash.com/photos/p1",
+                }
+            ],
+        }
+        settings = _effective(tmp_path, refinement_mode="thinking")
+
+        trace = pipeline_module._assemble_run_trace(brief, grounding, state, settings)
+
+        assert len(trace.grounding.photo_attributions) == 1
+        assert trace.grounding.photo_attributions[0].photographer_name == "Alice"
+        # The original GroundingResult passed in must not be mutated in place.
+        assert grounding.photo_attributions == []
+
+    def test_no_mid_loop_attributions_leaves_grounding_untouched(self, tmp_path):
+        brief = sample_brief()
+        grounding = GroundingResult(summary_text="preloop grounding")
+        state = {sk.ITERATIONS: []}
+        settings = _effective(tmp_path)
+
+        trace = pipeline_module._assemble_run_trace(brief, grounding, state, settings)
+
+        assert trace.grounding is grounding

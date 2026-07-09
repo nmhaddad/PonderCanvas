@@ -1,21 +1,27 @@
 from collections.abc import Callable
 
-from google.adk.agents import LlmAgent, LoopAgent
+from google.adk.agents import LlmAgent
 from google.adk.models import BaseLlm
 from google.adk.tools import ToolContext
 
 from pondercanvas.agent import prompts
 
-GenerationTool = Callable[[ToolContext], dict]
+GenerationTool = Callable[..., dict]
 EvaluationTool = Callable[[ToolContext], dict]
-ExitLoopTool = Callable[[ToolContext], dict]
 
 
-def build_generation_agent(chat_model: BaseLlm, generation_tool: GenerationTool) -> LlmAgent:
+def build_generation_agent(
+    chat_model: BaseLlm,
+    generation_tool: GenerationTool,
+    *research_tools: GenerationTool,
+) -> LlmAgent:
+    """`research_tools` (search_reference_images / search_web) are optional:
+    the agent decides per-turn whether it needs them before calling
+    generation_tool. See prompts/templates/generation_instruction.md."""
     return LlmAgent(
         name="GenerationAgent",
         model=chat_model,
-        tools=[generation_tool],
+        tools=[generation_tool, *research_tools],
         instruction=prompts.GENERATION_INSTRUCTION,
     )
 
@@ -27,21 +33,3 @@ def build_evaluation_agent(chat_model: BaseLlm, evaluation_tool: EvaluationTool)
         tools=[evaluation_tool],
         instruction=prompts.EVALUATION_INSTRUCTION,
     )
-
-
-def build_loop_control_agent(chat_model: BaseLlm, exit_loop_tool: ExitLoopTool) -> LlmAgent:
-    return LlmAgent(
-        name="LoopControlAgent",
-        model=chat_model,
-        tools=[exit_loop_tool],
-        instruction=prompts.LOOP_CONTROL_INSTRUCTION,
-    )
-
-
-def build_refinement_loop(sub_agents: list, max_iterations: int) -> LoopAgent:
-    """google.adk.agents.LoopAgent is deprecated in favor of a new Workflow
-    primitive as of google-adk 2.4.0, but Workflow does not yet support
-    being composed the way this pipeline needs (confirmed via spike against
-    the installed version); LoopAgent remains the documented, working
-    generate-critique-refine primitive. Revisit if/when Workflow matures."""
-    return LoopAgent(name="RefinementLoop", sub_agents=sub_agents, max_iterations=max_iterations)

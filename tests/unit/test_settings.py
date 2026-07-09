@@ -18,7 +18,7 @@ class TestResolveSettingsPrecedence:
     def test_defaults_used_when_no_overlay(self):
         effective = resolve_settings(_base())
         assert effective.chat_provider == "gemini"
-        assert effective.max_iterations == 5
+        assert effective.max_iterations == 3
 
     def test_env_derived_base_overrides_default(self):
         base = _base(chat_provider="openai", chat_model_id="gpt-5")
@@ -62,9 +62,9 @@ class TestMaxIterationsCap:
         effective = resolve_settings(base)
         assert effective.max_iterations == 1
 
-    def test_default_is_five(self):
+    def test_default_is_three(self):
         effective = resolve_settings(_base())
-        assert effective.max_iterations == 5
+        assert effective.max_iterations == 3
 
 
 class TestApiKeySecretHandling:

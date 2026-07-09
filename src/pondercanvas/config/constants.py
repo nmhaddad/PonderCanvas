@@ -6,9 +6,9 @@ IMAGE_PROVIDERS: Final[tuple[str, ...]] = ("gemini", "openai", "stability")
 
 # "fast" runs generate -> evaluate in a plain Python for-loop and reads the
 # stop/continue decision straight from evaluation state (no per-iteration LLM
-# calls). "thinking" drives the same steps through ADK's LoopAgent and will
-# grow richer reasoning over time. "instant" skips the loop entirely: one
-# generate call, no evaluation. See pondercanvas.agent.refinement.
+# calls). "thinking" drives the same steps through an ADK Workflow graph and
+# will grow richer reasoning over time. "instant" skips the loop entirely:
+# one generate call, no evaluation. See pondercanvas.agent.refinement.
 REFINEMENT_MODES: Final[tuple[str, ...]] = ("fast", "thinking", "instant")
 DEFAULT_REFINEMENT_MODE: Final[str] = "fast"
 
@@ -19,7 +19,7 @@ DEFAULT_IMAGE_MODEL_ID: Final[str] = "gemini-3.1-flash-image"
 DEFAULT_STRUCTURED_MODEL_ID: Final[str] = "gemini-3.5-flash"
 
 MAX_ITERATIONS_CAP: Final[int] = 5
-DEFAULT_MAX_ITERATIONS: Final[int] = 5
+DEFAULT_MAX_ITERATIONS: Final[int] = 3
 DEFAULT_EVAL_PASS_THRESHOLD: Final[float] = 4.0
 
 DEFAULT_SIGLIP_ENABLED: Final[bool] = False

@@ -11,6 +11,7 @@ from pondercanvas.agent.refinement import (
 )
 from pondercanvas.agent.tools.evaluation_tool import make_evaluate_image_tool
 from pondercanvas.agent.tools.generation_tool import make_generate_image_tool
+from pondercanvas.agent.tools.research import make_search_reference_images_tool, make_search_web_tool
 from pondercanvas.config.settings import EffectiveSettings
 from pondercanvas.logging_utils import log_run_trace
 from pondercanvas.providers.chat.factory import build_chat_model
@@ -18,7 +19,7 @@ from pondercanvas.providers.image.registry import get_image_provider
 from pondercanvas.providers.scoring.siglip import SiglipScorer
 from pondercanvas.providers.search.collect import collect_references
 from pondercanvas.providers.structured.gemini_structured import GeminiStructuredVisionProvider
-from pondercanvas.schemas.grounding import GroundingResult
+from pondercanvas.schemas.grounding import GroundingResult, PhotoAttribution
 from pondercanvas.schemas.trace import IterationTrace, RunTrace
 
 _IMAGE_PROVIDER_KEY_FIELD = {
@@ -31,7 +32,7 @@ _IMAGE_PROVIDER_KEY_FIELD = {
 class PonderCanvasPipeline:
     """Top-level orchestrator: extraction and reference-gathering run once as
     plain pre-steps, then the configured refinement mode drives image
-    generation: "fast" (plain for-loop) or "thinking" (LoopAgent) run
+    generation: "fast" (plain for-loop) or "thinking" (Workflow graph) run
     generate -> evaluate -> repeat up to settings.max_iterations, while
     "instant" skips the loop and generates a single image."""
 
@@ -77,6 +78,21 @@ class PonderCanvasPipeline:
         }
 
         if settings.refinement_mode == "thinking":
+            research_tools = []
+            if settings.unsplash_api_key:
+                research_tools.append(
+                    make_search_reference_images_tool(
+                        settings.unsplash_api_key,
+                        settings.max_reference_downloads,
+                        settings.max_download_bytes,
+                        settings.download_timeout_s,
+                    )
+                )
+            if settings.google_api_key:
+                research_tools.append(
+                    make_search_web_tool(settings.google_api_key, settings.structured_model_id)
+                )
+
             final_state = await run_thinking_refinement(
                 build_chat_model(settings),
                 generation_tool,
@@ -84,6 +100,7 @@ class PonderCanvasPipeline:
                 initial_state,
                 settings.max_iterations,
                 prompt,
+                *research_tools,
             )
         elif settings.refinement_mode == "instant":
             final_state = run_instant_generation(generation_tool, initial_state)
@@ -113,6 +130,17 @@ def _assemble_run_trace(
 
     last_evaluation = state.get(sk.LAST_EVALUATION)
     passed = bool(last_evaluation and last_evaluation.get("pass"))
+
+    # search_reference_images (thinking mode only) may have pulled in extra
+    # Unsplash photos mid-loop -- those aren't part of the preloop `grounding`
+    # object, so fold their attributions in here for the trace.
+    extra_attributions = [
+        PhotoAttribution(**attribution) for attribution in state.get(sk.PHOTO_ATTRIBUTIONS, [])
+    ]
+    if extra_attributions:
+        grounding = grounding.model_copy(
+            update={"photo_attributions": [*grounding.photo_attributions, *extra_attributions]}
+        )
 
     stopped_reason: Literal["passed", "max_iterations_reached", "instant"]
     if settings.refinement_mode == "instant":

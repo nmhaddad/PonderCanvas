@@ -4,7 +4,7 @@
 
 # PonderCanvas
 
-PonderCanvas is an image-generation agent, inspired by Meta's [Muse](https://ai.meta.com/blog/introducing-muse-image-muse-video-msl/) blog post. You give it a text prompt and optional reference images; it extracts a structured brief, grounds itself with real web search, then iterates through a generate → evaluate → refine loop (up to 5 rounds) until the result passes a quality bar or the budget runs out.
+PonderCanvas is an image-generation agent, inspired by Meta's [Muse](https://ai.meta.com/blog/introducing-muse-image-muse-video-msl/) blog post. You give it a text prompt and optional reference images; it extracts a structured brief, grounds itself with real web search, then iterates through a generate → evaluate → refine loop (up to `max_iterations` rounds, default 3) until the result passes a quality bar or the budget runs out.
 
 ## Architecture
 
@@ -19,13 +19,17 @@ User prompt + reference images
         │                             + Unsplash reference photos (real image URLs, downloaded)
         ▼
  ┌─────────────────────────────────────────────┐
- │  Refinement loop (max_iterations, default 5) │
+ │  Refinement loop (max_iterations, default 3) │
  │                                               │
  │   generate_image → evaluate_image → repeat    │
  │   loop exits early once evaluation passes     │
  │                                               │
  │   fast: plain Python for-loop (default)       │
- │   thinking: ADK LoopAgent of LlmAgents        │
+ │   thinking: ADK Workflow graph of LlmAgents   │
+ │     + a deterministic stop-check node,        │
+ │     self-authored prompts + optional search   │
+ │   instant: single generate_image call,        │
+ │     no loop, no evaluation                    │
  └─────────────────────────────────────────────┘
         │
         ▼
@@ -36,9 +40,10 @@ Two design choices worth knowing about:
 
 - **Extraction and evaluation always use Gemini**, independent of your chosen chat/image provider — they rely on Gemini's structured JSON output and (for grounding) Gemini's Google Search tool, neither of which has an equivalent in this project's other providers yet.
 - **Refinement edits the previous image, it doesn't re-roll from scratch.** The first generation uses the user's/grounding reference images; every subsequent iteration feeds the model *its own previous output* as the only input image and reframes the critique as "corrections to apply to this image" (see `agent/tools/generation_tool.py` and `prompts/templates/generation_prompt.md.j2`). Without this, each pass regenerates a brand-new scene from the brief and the same structural flaw (e.g. a floating camera with no strap) recurs no matter how good the feedback text is — the model can only fix an artifact it can actually see.
-- **The refinement loop has two selectable modes** (`PONDERCANVAS_REFINEMENT_MODE` or the "Refinement mode" dropdown in Settings; see `agent/refinement.py`):
-  - **`fast`** (default) runs `generate_image → evaluate_image` in a plain Python `for` loop and stops the moment an evaluation passes. The stop/continue decision is already computed in Python (`evaluate_image`'s `pass` flag) and the evaluator's feedback reaches the next generation through session state, so this needs **zero LLM calls for orchestration**.
-  - **`thinking`** drives the same two steps plus a `LoopControlAgent` through a real `google.adk.agents.LoopAgent` — each step is an ADK `LlmAgent` backed by your chosen chat model, and the loop ends early via ADK's `escalate` mechanism (an `exit_loop` tool call). It costs an extra chat-model round-trip per step and is the seam where richer, LLM-mediated loop reasoning will grow.
+- **The refinement loop has three selectable modes** (`PONDERCANVAS_REFINEMENT_MODE` or the "Refinement mode" dropdown in Settings; see `agent/refinement.py`):
+  - **`fast`** (default) runs `generate_image → evaluate_image` in a plain Python `for` loop and stops the moment an evaluation passes. The stop/continue decision is already computed in Python (`evaluate_image`'s `pass` flag) and the evaluator's feedback reaches the next generation through session state, so this needs **zero LLM calls for orchestration**. The prompt fed to the image model is built from a fixed Jinja template (`prompts/templates/generation_prompt.md.j2`).
+  - **`thinking`** drives the same two steps through a real `google.adk.workflow.Workflow` graph (see `agent/workflow.py`) — `GenerationAgent` and `EvaluationAgent` are each an ADK `LlmAgent` backed by your chosen chat model, wired in a cycle through a third graph node, `check_stop_condition` (see `agent/nodes.py`). That node is a plain deterministic function, not an LLM agent — it reads the same `pass` flag `fast` mode does and routes the graph either back to `GenerationAgent` or to a stop, so ending the loop costs no extra chat-model call. This replaces the deprecated `LoopAgent` primitive, which required a third LLM-backed agent (`LoopControlAgent`) just to decide when to call an `exit_loop` tool. Unlike `fast`, `GenerationAgent` composes the image prompt itself (see `prompts/templates/generation_instruction.md`) and can optionally call the tools `search_reference_images` (Unsplash) or `search_web` (Google Search) mid-loop when it decides current context doesn't cover something evaluation feedback called out — e.g. feedback wants a "wet" cat but existing references are all dry, so it searches "wet cat" (see `agent/tools/research.py`). It costs an extra chat-model round-trip per `LlmAgent` step per iteration, plus any research calls it chooses to make.
+  - **`instant`** skips the loop and evaluation entirely: one `generate_image` call using the same fixed template as `fast`, for when you just want a single image out of the preloop extraction/grounding work with no refinement spend.
 
 Both the **chat model** (drives the agent's tool-calling reasoning) and the **image-generation model** are swappable independently, via environment variables or live in the Settings panel:
 
@@ -109,7 +114,7 @@ uv run pytest                                    # offline suite: no API keys, n
 PONDERCANVAS_RUN_LIVE_TESTS=1 uv run pytest -m live   # end-to-end against real APIs (needs real keys)
 ```
 
-The offline suite (`tests/unit/`, `tests/integration_offline/`, `tests/ui/`) mocks every external call — Gemini's client, LiteLLM, `requests` — including full `LoopAgent` executions driven by scripted fake models in `tests/fixtures/fake_llm.py`. Nothing in it needs credentials or a network connection. Live tests (`tests/live/`) are skipped by default and only run when explicitly opted into via the marker and env var above.
+The offline suite (`tests/unit/`, `tests/integration_offline/`, `tests/ui/`) mocks every external call — Gemini's client, LiteLLM, `requests` — including full `Workflow` graph executions driven by scripted fake models in `tests/fixtures/fake_llm.py`. Nothing in it needs credentials or a network connection. Live tests (`tests/live/`) are skipped by default and only run when explicitly opted into via the marker and env var above.
 
 ## Project layout
 
@@ -125,15 +130,22 @@ src/pondercanvas/
 │   └── search/         Gemini Google Search grounding + Unsplash reference photos
 ├── agent/
 │   ├── extraction.py   pre-loop: prompt/images -> GenerationBrief
-│   ├── tools/           generate_image, evaluate_image, exit_loop (ADK tool functions)
-│   ├── agents.py        builds the GenerationAgent/EvaluationAgent/LoopControlAgent/LoopAgent tree
-│   ├── refinement.py    run_fast_refinement (for-loop) + run_thinking_refinement (LoopAgent)
+│   ├── tools/           generate_image, evaluate_image, search_reference_images, search_web --
+│   │                     ADK tool functions, only ever called *by* an LlmAgent (the latter two
+│   │                     are thinking-mode only)
+│   ├── nodes.py          check_stop_condition: a plain deterministic function wired directly
+│   │                     into the thinking-mode graph's edges, never LLM-invoked -- not a tool
+│   ├── agents.py         builds the GenerationAgent/EvaluationAgent LlmAgents
+│   ├── workflow.py       build_refinement_workflow: wires the two LlmAgents + check_stop_condition
+│   │                     into a google.adk.workflow.Workflow graph
+│   ├── refinement.py    run_fast_refinement (for-loop) + run_thinking_refinement (Workflow graph)
+│   │                     + run_instant_generation (single call, no loop)
 │   └── pipeline.py      PonderCanvasPipeline: ties extraction -> grounding -> loop -> RunTrace
 └── ui/                  Gradio app + settings panel + trace renderer
 
 tests/
 ├── unit/                one file per provider/tool/schema/settings behavior, fully mocked
-├── integration_offline/ real LoopAgent runs driven by scripted fake models, still offline
+├── integration_offline/ real Workflow graph runs driven by scripted fake models, still offline
 ├── fixtures/             FakeImageProvider, FakeStructuredVisionProvider, FakeLlm variants
 ├── ui/                   Gradio callback logic tested as plain functions
 └── live/                 real end-to-end run, gated behind the `live` marker

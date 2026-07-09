@@ -23,7 +23,6 @@ def _read(name: str) -> str:
 
 GENERATION_INSTRUCTION = _read("generation_instruction.md")
 EVALUATION_INSTRUCTION = _read("evaluation_instruction.md")
-LOOP_CONTROL_INSTRUCTION = _read("loop_control_instruction.md")
 
 
 def build_extraction_prompt(user_prompt: str) -> str:

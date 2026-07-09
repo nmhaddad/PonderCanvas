@@ -173,3 +173,45 @@ class TestGenerateImageTool:
         tool(ctx)
 
         assert nested_dir.exists()
+
+    def test_explicit_prompt_is_used_verbatim_instead_of_the_template(self, tmp_path):
+        provider = FakeImageProvider()
+        tool = make_generate_image_tool(provider, tmp_path)
+        ctx = FakeToolContext({sk.BRIEF: _brief_dict()})
+
+        result = tool(ctx, prompt="a hand-authored scene description")
+
+        assert provider.calls[0]["prompt"] == "a hand-authored scene description"
+        assert ctx.state[sk.ITERATIONS][0]["prompt_used"] == "a hand-authored scene description"
+        assert result["status"] == "ok"
+
+    def test_extra_reference_images_are_appended_and_then_cleared(self, tmp_path):
+        provider = FakeImageProvider()
+        tool = make_generate_image_tool(provider, tmp_path)
+        ctx = FakeToolContext(
+            {
+                sk.BRIEF: _brief_dict(),
+                sk.REFERENCE_IMAGE_BYTES: [b"ref1"],
+                sk.EXTRA_REFERENCE_IMAGE_BYTES: [b"searched1", b"searched2"],
+            }
+        )
+
+        tool(ctx)
+        assert provider.calls[0]["reference_images"] == [b"ref1", b"searched1", b"searched2"]
+        assert ctx.state[sk.EXTRA_REFERENCE_IMAGE_BYTES] == []
+
+        # A later call with nothing newly searched shouldn't reuse the stale batch.
+        tool(ctx)
+        assert provider.calls[1]["reference_images"] == [b"ref1"]
+
+    def test_extra_reference_images_are_appended_to_previous_image_on_revision(self, tmp_path):
+        provider = FakeImageProvider()
+        tool = make_generate_image_tool(provider, tmp_path)
+        ctx = FakeToolContext({sk.BRIEF: _brief_dict()})
+
+        tool(ctx)
+        ctx.state[sk.LAST_EVALUATION] = {"feedback": "make the cat wet"}
+        ctx.state[sk.EXTRA_REFERENCE_IMAGE_BYTES] = [b"wet-cat-ref"]
+        tool(ctx)
+
+        assert provider.calls[1]["reference_images"] == [b"fake-png", b"wet-cat-ref"]
