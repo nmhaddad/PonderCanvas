@@ -1,3 +1,4 @@
+from concurrent.futures import ThreadPoolExecutor
 from typing import NamedTuple
 
 import requests
@@ -72,6 +73,20 @@ def _track_download(photo_id: str, api_key: str, timeout_s: float) -> None:
         pass
 
 
+def _download_one(
+    photo: UnsplashPhoto, api_key: str, max_bytes: int, timeout_s: float
+) -> tuple[bytes, UnsplashPhoto] | None:
+    try:
+        response = requests.get(photo.image_url, timeout=timeout_s)
+        response.raise_for_status()
+    except requests.RequestException:
+        return None
+    if len(response.content) > max_bytes:
+        return None
+    _track_download(photo.id, api_key, timeout_s)
+    return response.content, photo
+
+
 def download_photos(
     photos: list[UnsplashPhoto],
     api_key: str,
@@ -82,16 +97,16 @@ def download_photos(
     """Downloads up to max_images of the given photos, skipping any that
     error out or exceed max_bytes, and tracks each one actually used per
     Unsplash's API guidelines. Returns (image_bytes, photo) pairs so callers
-    can attribute exactly the photos that ended up being used."""
-    downloaded: list[tuple[bytes, UnsplashPhoto]] = []
-    for photo in photos[:max_images]:
-        try:
-            response = requests.get(photo.image_url, timeout=timeout_s)
-            response.raise_for_status()
-        except requests.RequestException:
-            continue
-        if len(response.content) > max_bytes:
-            continue
-        _track_download(photo.id, api_key, timeout_s)
-        downloaded.append((response.content, photo))
-    return downloaded
+    can attribute exactly the photos that ended up being used.
+
+    Each photo's fetch (plus its tracking ping) runs on its own thread so the
+    downloads happen concurrently rather than one blocking round-trip after
+    another; input order is preserved in the returned list."""
+    selected = photos[:max_images]
+    if not selected:
+        return []
+    with ThreadPoolExecutor(max_workers=len(selected)) as executor:
+        results = executor.map(
+            lambda photo: _download_one(photo, api_key, max_bytes, timeout_s), selected
+        )
+    return [result for result in results if result is not None]

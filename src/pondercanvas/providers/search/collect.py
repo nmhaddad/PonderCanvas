@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from concurrent.futures import ThreadPoolExecutor
 
 from pondercanvas.config.settings import EffectiveSettings
 from pondercanvas.providers.search.gemini_search import ground_with_search
@@ -31,11 +32,13 @@ def collect_references(
     runs; photo references are skipped with an empty list (not an error)
     when no key is configured."""
     queries = brief.search_queries or [brief.subject]
-    grounding = ground_fn(queries, settings.google_api_key, settings.structured_model_id)
 
-    downloaded_images: list[bytes] = []
-    attributions: list[PhotoAttribution] = []
-    if settings.unsplash_api_key:
+    def _ground() -> GroundingResult:
+        return ground_fn(queries, settings.google_api_key, settings.structured_model_id)
+
+    def _fetch_photos() -> tuple[list[bytes], list[PhotoAttribution]]:
+        if not settings.unsplash_api_key:
+            return [], []
         photos: list[UnsplashPhoto] = []
         for query in queries:
             if len(photos) >= settings.max_reference_downloads:
@@ -48,6 +51,8 @@ def collect_references(
                     settings.download_timeout_s,
                 )
             )
+        images: list[bytes] = []
+        attrs: list[PhotoAttribution] = []
         for image_bytes, photo in download_photos_fn(
             photos,
             settings.unsplash_api_key,
@@ -55,14 +60,24 @@ def collect_references(
             settings.max_download_bytes,
             settings.download_timeout_s,
         ):
-            downloaded_images.append(image_bytes)
-            attributions.append(
+            images.append(image_bytes)
+            attrs.append(
                 PhotoAttribution(
                     photographer_name=photo.photographer_name,
                     photographer_profile_url=photo.photographer_profile_url,
                     photo_page_url=photo.photo_page_url,
                 )
             )
+        return images, attrs
+
+    # Text grounding (a Gemini call) and Unsplash photo fetching are
+    # independent -- both need only `queries` -- so overlap the two multi-second
+    # network operations instead of running them back to back.
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        grounding_future = executor.submit(_ground)
+        photos_future = executor.submit(_fetch_photos)
+        grounding = grounding_future.result()
+        downloaded_images, attributions = photos_future.result()
 
     grounding = grounding.model_copy(
         update={

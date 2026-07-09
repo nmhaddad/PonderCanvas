@@ -1,5 +1,7 @@
+import requests
 import responses
 
+from pondercanvas.providers.search import unsplash_search
 from pondercanvas.providers.search.unsplash_search import (
     _BASE_URL,
     _SEARCH_URL,
@@ -188,3 +190,51 @@ class TestDownloadPhotos:
         result = download_photos([_PHOTO], "api-key", max_images=5, max_bytes=1_000_000, timeout_s=5.0)
 
         assert result == [(b"data", _PHOTO)]
+
+
+class _FakeResponse:
+    def __init__(self, content: bytes = b""):
+        self.content = content
+
+    def raise_for_status(self) -> None:
+        pass
+
+
+def _photos(n: int) -> list[UnsplashPhoto]:
+    return [
+        UnsplashPhoto(f"p{i}", f"https://img/p{i}.jpg", f"N{i}", f"prof{i}", f"page{i}")
+        for i in range(n)
+    ]
+
+
+class TestDownloadPhotosConcurrency:
+    def test_preserves_input_order_regardless_of_completion_order(self, monkeypatch):
+        # Downloads run on separate threads now; executor.map must still return
+        # results in the input photo order, not whichever thread finished first.
+        def fake_get(url, timeout=None, headers=None):
+            if url.endswith("/download"):
+                return _FakeResponse()
+            photo_id = url.rsplit("/", 1)[-1].removesuffix(".jpg")
+            return _FakeResponse(content=photo_id.encode())
+
+        monkeypatch.setattr(unsplash_search.requests, "get", fake_get)
+
+        result = download_photos(_photos(3), "k", max_images=3, max_bytes=1_000_000, timeout_s=1.0)
+
+        assert [photo.id for _, photo in result] == ["p0", "p1", "p2"]
+        assert [image_bytes for image_bytes, _ in result] == [b"p0", b"p1", b"p2"]
+
+    def test_failed_download_is_filtered_out_while_order_is_preserved(self, monkeypatch):
+        def fake_get(url, timeout=None, headers=None):
+            if url.endswith("/download"):
+                return _FakeResponse()
+            photo_id = url.rsplit("/", 1)[-1].removesuffix(".jpg")
+            if photo_id == "p1":
+                raise requests.RequestException("boom")
+            return _FakeResponse(content=photo_id.encode())
+
+        monkeypatch.setattr(unsplash_search.requests, "get", fake_get)
+
+        result = download_photos(_photos(3), "k", max_images=3, max_bytes=1_000_000, timeout_s=1.0)
+
+        assert [photo.id for _, photo in result] == ["p0", "p2"]
