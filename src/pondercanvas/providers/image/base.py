@@ -11,6 +11,7 @@ class ImageResult(BaseModel):
     mime_type: str
     provider: str
     model_id: str
+    interaction_id: str | None = None
     metadata: dict[str, Any] = {}
 
 

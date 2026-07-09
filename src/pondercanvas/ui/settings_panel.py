@@ -23,6 +23,7 @@ SETTINGS_FIELD_ORDER = (
     "unsplash_api_key",
     "gemini_image_api_key",
     "gemini_image_enterprise",
+    "gemini_image_search_enabled",
     "refinement_mode",
     "max_iterations",
     "eval_pass_threshold",
@@ -75,6 +76,15 @@ def build_settings_panel() -> list[gr.components.Component]:
                 value=defaults.gemini_image_enterprise,
                 label="Use Gemini Enterprise/Vertex AI endpoint for image generation",
             )
+        gr.Markdown(
+            "Lets the Gemini image model search Google (including Google Images) "
+            "for extra visual grounding at generation time, alongside Unsplash "
+            "reference photos. Only applies to the Gemini image provider."
+        )
+        gemini_image_search_enabled = gr.Checkbox(
+            value=defaults.gemini_image_search_enabled,
+            label="Enable Google image search during generation",
+        )
 
         google_api_key = gr.Textbox(label="Google API key (required)", type="password")
         with gr.Row():
@@ -140,6 +150,7 @@ def build_settings_panel() -> list[gr.components.Component]:
         unsplash_api_key,
         gemini_image_api_key,
         gemini_image_enterprise,
+        gemini_image_search_enabled,
         refinement_mode,
         max_iterations,
         eval_pass_threshold,
@@ -160,6 +171,7 @@ def fields_to_overlay(
     unsplash_api_key: str,
     gemini_image_api_key: str,
     gemini_image_enterprise: bool,
+    gemini_image_search_enabled: bool,
     refinement_mode: str,
     max_iterations: float | int,
     eval_pass_threshold: float,
@@ -185,6 +197,7 @@ def fields_to_overlay(
         unsplash_api_key=blank_to_none(unsplash_api_key),
         gemini_image_api_key=blank_to_none(gemini_image_api_key),
         gemini_image_enterprise=gemini_image_enterprise,
+        gemini_image_search_enabled=gemini_image_search_enabled,
         refinement_mode=blank_to_none(refinement_mode),
         max_iterations=int(max_iterations) if max_iterations else None,
         eval_pass_threshold=float(eval_pass_threshold) if eval_pass_threshold else None,

@@ -18,6 +18,7 @@ _SETTINGS_FIELD_VALUES = (
     "",  # unsplash_api_key
     "",  # gemini_image_api_key
     False,  # gemini_image_enterprise
+    True,  # gemini_image_search_enabled
     "",  # refinement_mode
     0,  # max_iterations
     0.0,  # eval_pass_threshold

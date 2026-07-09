@@ -6,6 +6,11 @@ BRIEF = "brief"
 GROUNDING_RESULT = "grounding_result"
 REFERENCE_IMAGE_BYTES = "reference_image_bytes"
 LAST_IMAGE_PATH = "last_image_path"
+# The Gemini Interactions API's continuation ID for the most recent
+# generation: passing it as previous_interaction_id on the next call
+# continues that generation server-side, so revisions no longer need to
+# read the previous image back off disk and re-upload it as a reference.
+LAST_INTERACTION_ID = "last_interaction_id"
 LAST_EVALUATION = "last_evaluation"
 ITERATIONS = "iterations"
 

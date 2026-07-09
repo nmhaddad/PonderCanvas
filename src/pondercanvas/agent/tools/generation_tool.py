@@ -28,14 +28,15 @@ def make_generate_image_tool(
         grounding = state.get(sk.GROUNDING_RESULT)
         feedback = state.get(sk.LAST_EVALUATION)
 
-        # On refinement iterations, feed the model its own previous image so it
-        # *edits* that image to address the critique, rather than regenerating a
-        # fresh scene from the brief and re-rolling the same flaw. Critique text
-        # alone can't fix a specific rendered artifact the model never sees --
-        # e.g. "add a strap to the floating camera" only lands if the model is
-        # looking at the camera it drew.
-        previous_image_path = state.get(sk.LAST_IMAGE_PATH)
-        revising = bool(feedback and feedback.get("feedback") and previous_image_path)
+        # On refinement iterations, continue the model's own previous
+        # generation (via the Gemini Interactions API's previous_interaction_id)
+        # so it *edits* that image to address the critique, rather than
+        # regenerating a fresh scene from the brief and re-rolling the same
+        # flaw. Critique text alone can't fix a specific rendered artifact the
+        # model never sees -- e.g. "add a strap to the floating camera" only
+        # lands if the model is looking at the camera it drew.
+        previous_interaction_id = state.get(sk.LAST_INTERACTION_ID)
+        revising = bool(feedback and feedback.get("feedback") and previous_interaction_id)
         final_prompt = prompt or build_generation_prompt(brief, grounding, feedback, revising=revising)
 
         # Photos the search_reference_images tool fetched this turn (thinking
@@ -47,17 +48,22 @@ def make_generate_image_tool(
 
         if revising:
             # After the first pass, refine the model's own previous output
-            # directly: feed back ONLY that image (plus anything freshly
-            # searched for), not the user's/grounding references. The first
+            # directly: the previous image is implicit via
+            # previous_interaction_id, so only anything freshly searched for
+            # is sent -- not the user's/grounding references. The first
             # render already absorbed those references; re-supplying them here
             # pulls the edit back toward them instead of fixing the specific
             # artifact in the last result. So the user's reference images are
             # used for the first generation only.
-            generation_images = [Path(previous_image_path).read_bytes(), *extra_images]
+            generation_images = extra_images
         else:
             generation_images = [*state.get(sk.REFERENCE_IMAGE_BYTES, []), *extra_images]
 
-        result = image_provider.generate(prompt=final_prompt, reference_images=generation_images)
+        result = image_provider.generate(
+            prompt=final_prompt,
+            reference_images=generation_images,
+            previous_interaction_id=previous_interaction_id if revising else None,
+        )
 
         iterations = list(state.get(sk.ITERATIONS, []))
         idx = len(iterations)
@@ -68,11 +74,13 @@ def make_generate_image_tool(
         image_path.write_bytes(result.image_bytes)
 
         state[sk.LAST_IMAGE_PATH] = str(image_path)
+        state[sk.LAST_INTERACTION_ID] = result.interaction_id
         iterations.append(
             {
                 "iteration_index": idx,
                 "prompt_used": final_prompt,
                 "image_path": str(image_path),
+                "interaction_id": result.interaction_id,
                 "created_at": datetime.now(UTC).isoformat(),
             }
         )

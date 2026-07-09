@@ -47,6 +47,7 @@ class PonderCanvasPipeline:
             api_key=self._image_api_key(),
             aspect_ratio=settings.aspect_ratio,
             enterprise=settings.gemini_image_enterprise,
+            image_search_enabled=settings.gemini_image_search_enabled,
         )
         self.siglip_scorer = SiglipScorer() if settings.siglip_enabled else None
 
@@ -122,6 +123,7 @@ def _assemble_run_trace(
             iteration_index=it["iteration_index"],
             prompt_used=it["prompt_used"],
             image_path=it["image_path"],
+            interaction_id=it.get("interaction_id"),
             evaluation=it.get("evaluation"),
             created_at=datetime.fromisoformat(it["created_at"]),
         )

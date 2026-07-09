@@ -1,46 +1,41 @@
+import base64
 from typing import Any
 
 from google import genai
-from google.genai import types
+from google.genai import interactions
 
 from pondercanvas.providers._gemini import gemini_http_options
 from pondercanvas.providers._mime import sniff_image_mime
 from pondercanvas.providers.image.base import ImageProvider, ImageResult
 
 
-def _describe_missing_image(response: types.GenerateContentResponse) -> str:
-    """Builds an actionable error message when Gemini returns no inline image
-    data -- e.g. a safety block, a refusal, or an empty response -- instead of
-    just the unhelpful generic message. Attribute access is defensive since
-    exact response shape can vary across models/modes."""
+def _describe_missing_image(interaction: interactions.Interaction) -> str:
+    """Builds an actionable error message when Gemini returns no output image
+    -- e.g. a safety block, a refusal, or an empty response -- instead of just
+    the unhelpful generic message. Attribute access is defensive since exact
+    response shape can vary across models/modes."""
     details: list[str] = []
 
-    prompt_feedback = getattr(response, "prompt_feedback", None)
-    block_reason = getattr(prompt_feedback, "block_reason", None) if prompt_feedback else None
-    if block_reason:
-        details.append(f"prompt blocked: {block_reason}")
+    status = getattr(interaction, "status", None)
+    if status and status != "completed":
+        details.append(f"status={status}")
 
-    candidates = response.candidates or []
-    if not candidates:
-        details.append("no candidates returned")
-    else:
-        candidate = candidates[0]
-        finish_reason = getattr(candidate, "finish_reason", None)
-        if finish_reason:
-            details.append(f"finish_reason={finish_reason}")
-        finish_message = getattr(candidate, "finish_message", None)
-        if finish_message:
-            details.append(f"finish_message={finish_message!r}")
+    steps = getattr(interaction, "steps", None) or []
+    text_parts: list[str] = []
+    for step in steps:
+        for block in getattr(step, "content", None) or []:
+            text = getattr(block, "text", None)
+            if text:
+                text_parts.append(text)
+    if text_parts:
+        details.append(f"model returned text instead of an image: {' '.join(text_parts)!r}")
 
-        content = getattr(candidate, "content", None)
-        text_parts = [
-            part.text for part in (getattr(content, "parts", None) or []) if getattr(part, "text", None)
-        ]
-        if text_parts:
-            details.append(f"model returned text instead of an image: {' '.join(text_parts)!r}")
+    output_text = getattr(interaction, "output_text", None)
+    if output_text and output_text not in text_parts:
+        details.append(f"model returned text instead of an image: {output_text!r}")
 
     detail_str = "; ".join(details) if details else "no additional diagnostic info in response"
-    return f"Gemini image generation returned no inline image data ({detail_str})"
+    return f"Gemini image generation returned no output image ({detail_str})"
 
 
 class GeminiImageProvider(ImageProvider):
@@ -54,12 +49,14 @@ class GeminiImageProvider(ImageProvider):
         aspect_ratio: str = "1:1",
         output_mime_type: str = "image/png",
         enterprise: bool = False,
+        image_search_enabled: bool = True,
     ):
         self.model_id = model_id
         self._api_key = api_key
         self.aspect_ratio = aspect_ratio
         self.output_mime_type = output_mime_type
         self._enterprise = enterprise
+        self._image_search_enabled = image_search_enabled
         self._client: genai.Client | None = None
 
     @property
@@ -78,46 +75,53 @@ class GeminiImageProvider(ImageProvider):
         return self._client
 
     def generate(self, prompt: str, reference_images: list[bytes], **params: Any) -> ImageResult:
-        contents: list[Any] = [
-            types.Part.from_bytes(data=image, mime_type=sniff_image_mime(image)) for image in reference_images
+        input_content: list[dict[str, Any]] = [
+            {
+                "type": "image",
+                "data": base64.b64encode(image).decode("utf-8"),
+                "mime_type": sniff_image_mime(image),
+            }
+            for image in reference_images
         ]
-        contents.append(prompt)
+        input_content.append({"type": "text", "text": prompt})
 
-        # response_modalities MUST be IMAGE-only, not ["TEXT", "IMAGE"]:
-        # these models will happily return a prose *description* of the image
-        # (finish_reason=STOP, no error) instead of drawing it if TEXT is an
-        # allowed response modality -- especially on elaborate prompts with
-        # reference images. Omitting TEXT removes that escape hatch and
-        # reliably yields image bytes.
-        #
-        # output_mime_type is Enterprise/Vertex-only -- the Developer API
-        # rejects it client-side (before any network call), so it's gated on
-        # enterprise mode; aspect_ratio works on both.
-        image_config_kwargs: dict[str, Any] = {
+        # aspect_ratio works in both Developer API and Enterprise/Vertex mode.
+        # mime_type in response_format is only ever "image/jpeg" in this SDK
+        # version (there is no way to explicitly request PNG) -- omit it
+        # unless jpeg is actually wanted, and let the API's default apply.
+        response_format: dict[str, Any] = {
+            "type": "image",
             "aspect_ratio": params.get("aspect_ratio", self.aspect_ratio),
         }
-        if self._enterprise:
-            image_config_kwargs["output_mime_type"] = self.output_mime_type
+        if self.output_mime_type == "image/jpeg":
+            response_format["mime_type"] = "image/jpeg"
 
-        response = self.client.models.generate_content(
+        tools: list[dict[str, Any]] = []
+        if self._image_search_enabled:
+            tools.append({"type": "google_search", "search_types": ["web_search", "image_search"]})
+
+        interaction = self.client.interactions.create(
             model=self.model_id,
-            contents=contents,
-            config=types.GenerateContentConfig(
-                response_modalities=["IMAGE"],
-                image_config=types.ImageConfig(**image_config_kwargs),
-            ),
+            input=input_content,
+            previous_interaction_id=params.get("previous_interaction_id"),
+            # response_modalities MUST be IMAGE-only, not ["TEXT", "IMAGE"]:
+            # these models will happily return a prose *description* of the
+            # image instead of drawing it if TEXT is an allowed response
+            # modality -- especially on elaborate prompts with reference
+            # images. Omitting TEXT removes that escape hatch and reliably
+            # yields image bytes.
+            response_modalities=["IMAGE"],
+            response_format=response_format,
+            tools=tools or None,
         )
 
-        candidates = response.candidates or []
-        content = candidates[0].content if candidates else None
-        parts = content.parts if content is not None else None
-        for part in parts or []:
-            inline_data = part.inline_data
-            if inline_data is not None and inline_data.data is not None:
-                return ImageResult(
-                    image_bytes=inline_data.data,
-                    mime_type=inline_data.mime_type or self.output_mime_type,
-                    provider="gemini",
-                    model_id=self.model_id,
-                )
-        raise RuntimeError(_describe_missing_image(response))
+        output_image = interaction.output_image
+        if output_image is not None and output_image.data is not None:
+            return ImageResult(
+                image_bytes=base64.b64decode(output_image.data),
+                mime_type=output_image.mime_type or self.output_mime_type,
+                provider="gemini",
+                model_id=self.model_id,
+                interaction_id=interaction.id,
+            )
+        raise RuntimeError(_describe_missing_image(interaction))

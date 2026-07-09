@@ -11,7 +11,11 @@ class FakeImageProvider(ImageProvider):
     def __init__(self, results: list[ImageResult] | None = None):
         self.results = results or [
             ImageResult(
-                image_bytes=b"fake-png", mime_type="image/png", provider="fake", model_id="m"
+                image_bytes=b"fake-png",
+                mime_type="image/png",
+                provider="fake",
+                model_id="m",
+                interaction_id="fake-interaction-id",
             )
         ]
         self.calls: list[dict[str, Any]] = []

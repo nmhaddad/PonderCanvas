@@ -10,6 +10,7 @@ from pondercanvas.config.constants import (
     DEFAULT_DOWNLOAD_TIMEOUT_S,
     DEFAULT_EVAL_PASS_THRESHOLD,
     DEFAULT_GEMINI_IMAGE_ENTERPRISE,
+    DEFAULT_GEMINI_IMAGE_SEARCH_ENABLED,
     DEFAULT_IMAGE_MODEL_ID,
     DEFAULT_IMAGE_PROVIDER,
     DEFAULT_MAX_DOWNLOAD_BYTES,
@@ -50,6 +51,7 @@ class AppSettings(BaseSettings):
     unsplash_api_key: SecretStr | None = None
     gemini_image_api_key: SecretStr | None = None
     gemini_image_enterprise: bool = DEFAULT_GEMINI_IMAGE_ENTERPRISE
+    gemini_image_search_enabled: bool = DEFAULT_GEMINI_IMAGE_SEARCH_ENABLED
 
     refinement_mode: str = DEFAULT_REFINEMENT_MODE
     max_iterations: int = DEFAULT_MAX_ITERATIONS
@@ -81,6 +83,7 @@ class RuntimeSettingsOverlay(BaseModel):
     unsplash_api_key: str | None = None
     gemini_image_api_key: str | None = None
     gemini_image_enterprise: bool | None = None
+    gemini_image_search_enabled: bool | None = None
 
     refinement_mode: str | None = None
     max_iterations: int | None = None
@@ -106,6 +109,7 @@ class EffectiveSettings(BaseModel):
     unsplash_api_key: str | None
     gemini_image_api_key: str | None
     gemini_image_enterprise: bool
+    gemini_image_search_enabled: bool
 
     refinement_mode: str
     max_iterations: int
@@ -176,6 +180,9 @@ def resolve_settings(
         gemini_image_api_key=gemini_image_api_key,
         gemini_image_enterprise=_pick(
             overlay.gemini_image_enterprise, base.gemini_image_enterprise
+        ),
+        gemini_image_search_enabled=_pick(
+            overlay.gemini_image_search_enabled, base.gemini_image_search_enabled
         ),
         refinement_mode=refinement_mode,
         max_iterations=max_iterations,

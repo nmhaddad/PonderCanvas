@@ -15,6 +15,7 @@ def _call(**overrides):
         unsplash_api_key="",
         gemini_image_api_key="",
         gemini_image_enterprise=False,
+        gemini_image_search_enabled=True,
         refinement_mode="",
         max_iterations=0,
         eval_pass_threshold=0.0,
@@ -27,11 +28,13 @@ def _call(**overrides):
 
 class TestFieldsToOverlay:
     def test_all_blank_produces_empty_overlay(self):
-        # siglip_enabled/gemini_image_enterprise are checkboxes, not nullable
-        # text/number fields: they always pass their current (here,
-        # default-off) value through.
+        # siglip_enabled/gemini_image_enterprise/gemini_image_search_enabled
+        # are checkboxes, not nullable text/number fields: they always pass
+        # their current value through.
         overlay = _call()
-        assert overlay == RuntimeSettingsOverlay(siglip_enabled=False, gemini_image_enterprise=False)
+        assert overlay == RuntimeSettingsOverlay(
+            siglip_enabled=False, gemini_image_enterprise=False, gemini_image_search_enabled=True
+        )
 
     def test_blank_string_becomes_none(self):
         overlay = _call(chat_provider="")
@@ -102,6 +105,14 @@ class TestFieldsToOverlay:
     def test_gemini_image_enterprise_false_passes_through(self):
         overlay = _call(gemini_image_enterprise=False)
         assert overlay.gemini_image_enterprise is False
+
+    def test_gemini_image_search_enabled_true_passes_through(self):
+        overlay = _call(gemini_image_search_enabled=True)
+        assert overlay.gemini_image_search_enabled is True
+
+    def test_gemini_image_search_enabled_false_passes_through(self):
+        overlay = _call(gemini_image_search_enabled=False)
+        assert overlay.gemini_image_search_enabled is False
 
     def test_refinement_mode_passes_through(self):
         overlay = _call(refinement_mode="thinking")

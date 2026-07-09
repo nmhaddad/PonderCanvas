@@ -12,6 +12,7 @@ class IterationTrace(BaseModel):
     iteration_index: int
     prompt_used: str
     image_path: str
+    interaction_id: str | None = None
     evaluation: EvaluationResult | None = None
     created_at: datetime
 
