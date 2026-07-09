@@ -1,0 +1,4 @@
+# Default owner for everything in the repo, unless a later, more specific
+# pattern overrides it below. See:
+# https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-code-owners
+* @nmhaddad

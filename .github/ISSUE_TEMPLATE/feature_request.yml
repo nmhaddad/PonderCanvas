@@ -1,0 +1,31 @@
+name: Feature request
+description: Suggest an idea or enhancement for PonderCanvas
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: What problem does this solve?
+      description: What are you trying to do that PonderCanvas doesn't support today?
+    validations:
+      required: true
+
+  - type: textarea
+    id: solution
+    attributes:
+      label: Proposed solution
+      description: What would you like to see happen? Mention which layer this likely touches (a new provider, a UI change, an agent/tool change, etc.) if you have a sense of it.
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any workarounds or other approaches you've thought about.
+
+  - type: textarea
+    id: context
+    attributes:
+      label: Additional context
+      description: Anything else relevant -- links, screenshots, example prompts, etc.

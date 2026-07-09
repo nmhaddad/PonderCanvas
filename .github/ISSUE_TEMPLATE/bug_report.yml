@@ -1,0 +1,62 @@
+name: Bug report
+description: Something in PonderCanvas isn't working as expected
+labels: ["bug"]
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+    validations:
+      required: true
+
+  - type: textarea
+    id: repro
+    attributes:
+      label: Steps to reproduce
+      description: Prompt used, reference images (if any), provider/model settings, and what you did.
+      placeholder: |
+        1. Set chat_provider=..., image_provider=...
+        2. Entered prompt: "..."
+        3. Clicked Generate
+    validations:
+      required: true
+
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs / traceback
+      description: Paste any error output or the relevant run trace. This is rendered as a code block, no need for backticks.
+      render: shell
+
+  - type: input
+    id: version
+    attributes:
+      label: PonderCanvas version / commit
+      placeholder: e.g. output of `git rev-parse HEAD`
+
+  - type: dropdown
+    id: providers
+    attributes:
+      label: Chat / image providers in use
+      multiple: true
+      options:
+        - gemini (chat)
+        - openai (chat)
+        - anthropic (chat)
+        - gemini (image)
+        - openai (image, not yet implemented)
+        - stability (image, not yet implemented)
+
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: OS, Python version, uv version
