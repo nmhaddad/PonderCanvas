@@ -1,0 +1,62 @@
+[project]
+name = "pondercanvas"
+version = "0.1.0"
+description = "Grounded, self-critiquing image generation agent (text/reference-images -> agent -> evaluated image), built on Google ADK."
+readme = "README.md"
+authors = [
+    { name = "Nathaniel Haddad" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "google-adk>=2.4.0",
+    "google-genai>=2.10.0",
+    "gradio>=6.20.0",
+    "jinja2>=3.1.6",
+    "litellm>=1.91.0",
+    "pillow>=11.0.0",
+    "pydantic-settings>=2.14.2",
+    "requests>=2.34.2",
+]
+
+[project.optional-dependencies]
+siglip = [
+    "torch>=2.2.0",
+    "transformers>=4.40.0",
+    "sentencepiece>=0.2.0",
+]
+
+[project.scripts]
+pondercanvas = "pondercanvas.ui.app:main"
+
+[build-system]
+requires = ["uv_build>=0.11.25,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "mypy>=2.2.0",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "responses>=0.26.2",
+    "ruff>=0.15.20",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+markers = [
+    "live: requires network + real API keys, skipped unless PONDERCANVAS_RUN_LIVE_TESTS=1 (see tests/conftest.py)",
+]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+extend-exclude = ["context"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.mypy]
+python_version = "3.12"
+packages = ["pondercanvas"]
+ignore_missing_imports = true

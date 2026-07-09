@@ -1,1 +1,158 @@
+<p align="center">
+  <img src="media/pondercanvas.png" alt="PonderCanvas logo" width="200">
+</p>
+
 # PonderCanvas
+
+PonderCanvas is an image-generation agent, inspired by Meta's [Muse](https://ai.meta.com/blog/introducing-muse-image-muse-video-msl/) blog post. You give it a text prompt and optional reference images; it extracts a structured brief, grounds itself with real web search, then iterates through a generate → evaluate → refine loop (up to 5 rounds) until the result passes a quality bar or the budget runs out.
+
+## Architecture
+
+```
+User prompt + reference images
+        │
+        ▼
+ extract_generation_brief()      ── plain call, always Gemini structured output
+        │
+        ▼
+ collect_references()            ── plain call: Gemini Google Search grounding (text + citations)
+        │                             + Unsplash reference photos (real image URLs, downloaded)
+        ▼
+ ┌─────────────────────────────────────────────┐
+ │  LoopAgent (max_iterations, default 5)       │
+ │                                               │
+ │   GenerationAgent  → generate_image tool      │
+ │   EvaluationAgent  → evaluate_image tool      │  ADK LlmAgents, driven by your
+ │   LoopControlAgent → exit_loop tool           │  chosen chat model
+ │                                               │
+ │   loop exits early once evaluation passes     │
+ └─────────────────────────────────────────────┘
+        │
+        ▼
+   RunTrace (final image + per-iteration scores/feedback) → Gradio UI
+```
+
+Two design choices worth knowing about:
+
+- **Extraction and evaluation always use Gemini**, independent of your chosen chat/image provider — they rely on Gemini's structured JSON output and (for grounding) Gemini's Google Search tool, neither of which has an equivalent in this project's other providers yet.
+- **The generate/evaluate/control loop is a real `google.adk.agents.LoopAgent`**, not a hand-rolled Python loop — each step is an ADK `LlmAgent` backed by your chosen chat model, and the loop ends early via ADK's `escalate` mechanism (an `exit_loop` tool call) the moment an evaluation passes.
+
+Both the **chat model** (drives the agent's tool-calling reasoning) and the **image-generation model** are swappable independently, via environment variables or live in the Settings panel:
+
+| | Gemini | OpenAI | Anthropic | Stability |
+|---|---|---|---|---|
+| Chat model | native ADK `Gemini` | via LiteLLM | via LiteLLM | — |
+| Image model | implemented | not yet implemented | — | not yet implemented |
+
+Selecting `openai`/`stability` as the image provider fails loudly with `NotImplementedError` rather than silently falling back — the seam (`ImageProvider` in `providers/image/base.py`, registered in `providers/image/registry.py`) is ready for a real implementation once there's a key to test against.
+
+### Gemini Enterprise / Vertex AI mode (image generation)
+
+Some Gemini image models -- and some API-key restriction setups -- only work through the Gemini Enterprise Agent Platform (formerly Vertex AI) endpoint rather than the standard Gemini Developer API, and a single key's restrictions often can't be configured to allow both at once. If image generation fails with an access/permission error while chat/extraction work fine (which use the Developer API endpoint and aren't affected by this), that's the likely cause.
+
+- **Toggle**: `PONDERCANVAS_GEMINI_IMAGE_ENTERPRISE` (env) or the "Use Gemini Enterprise/Vertex AI endpoint for image generation" checkbox in the Settings panel. This still authenticates with a plain API key ("Express Mode": `genai.Client(api_key=..., enterprise=True)`) -- no service account or `gcloud` ADC login required.
+- **Key**: `PONDERCANVAS_GEMINI_IMAGE_API_KEY` (env) or the adjacent "Gemini image API key" field, if image generation needs a distinct key/restrictions from the one used for chat/extraction/grounding. Defaults to the main `PONDERCANVAS_GOOGLE_API_KEY` when left blank.
+- Only affects the Gemini image provider (`providers/image/gemini_image.py`); ADK's own `Gemini` chat model has an equivalent knob if you ever need it there too (subclass `Gemini` and override `api_client` to return `Client(enterprise=True, ...)` -- see the ADK docs).
+- **Image-only response modality**: `generate_content` is always called with `response_modalities=["IMAGE"]` (never `["TEXT", "IMAGE"]`). With TEXT allowed as a response modality, these models will sometimes return a prose *description* of the image (`finish_reason=STOP`, no error) instead of drawing it -- especially on elaborate prompts with reference images. Omitting TEXT removes that escape hatch. `output_mime_type` in `image_config` is the only knob gated to enterprise mode (the Developer API rejects it); `aspect_ratio` works on both.
+
+### Reference photos (Unsplash)
+
+`collect_references()` always grounds the brief in Gemini's Google Search text results. Optionally, it also fetches real reference photos from [Unsplash](https://unsplash.com/developers) to pass alongside the user's own reference images:
+
+- **Enable**: set `PONDERCANVAS_UNSPLASH_API_KEY` (env) or the "Unsplash Access Key" field in the Settings panel to an Unsplash Access Key. Without one, this step is skipped entirely (not an error) and only text grounding runs.
+- **Behavior**: for each of the brief's search queries, up to `PONDERCANVAS_MAX_REFERENCE_DOWNLOADS` (default 3) safe-filtered (`content_filter=high`) photos are downloaded, each capped at `PONDERCANVAS_MAX_DOWNLOAD_BYTES` (default 5MB); any query or individual photo that fails is skipped rather than failing the run.
+- **Attribution**: Unsplash's API guidelines require crediting the photographer and Unsplash for every photo actually used, with a tracked download ping per photo (`providers/search/unsplash_search.py`). This app does both automatically: "Photo by *Name* on Unsplash" (each linking to the photographer's profile and Unsplash, with `utm_source`/`utm_medium` as required) is rendered in the Gradio iteration trace for every run that used one.
+
+### Evaluation scoring
+
+By default, the `evaluate_image` tool scores each candidate purely on Gemini's structured critique (prompt adherence, aesthetic/technical quality, reference alignment). Optionally, a [SigLIP](https://huggingface.co/docs/transformers/en/model_doc/siglip) image/text similarity score can be blended in as an additional, model-independent signal:
+
+- **Toggle**: `PONDERCANVAS_SIGLIP_ENABLED` (env) or the "Enable SigLIP scoring" checkbox in the Settings panel. Off by default.
+- **Weight**: `PONDERCANVAS_SIGLIP_WEIGHT` (env, 0.0–1.0) or the adjacent slider. SigLIP's score is rescaled from its native `[0, 1]` onto Gemini's `1–5` scale, then blended as `(1 - weight) * gemini_overall + weight * siglip_scaled` — the higher the weight, the more SigLIP's opinion counts relative to Gemini's, and the pass/fail decision is recomputed against `eval_pass_threshold` using this blended score.
+- **Dependencies**: SigLIP scoring needs `torch` + `transformers`, an optional extra (not installed by default) since they're large: `uv sync --extra siglip`. If enabled but the model can't be loaded (extra not installed, no network to fetch weights, etc.), it logs a warning and falls back to Gemini's evaluation alone for that run rather than failing the pipeline.
+
+## Requirements
+
+- Python ≥ 3.12
+- [uv](https://docs.astral.sh/uv/) for dependency management
+- A Google API key (for Gemini structured extraction/evaluation and Google Search grounding) — required regardless of which chat/image provider you pick
+- Optionally: an OpenAI key and/or an Anthropic key, depending on which providers you use
+- Optionally: an Unsplash Access Key (unsplash.com/developers) if you want real reference photos alongside text grounding
+- Optionally: `torch` + `transformers` (`uv sync --extra siglip`) if you want to enable SigLIP-based evaluation scoring
+
+## Setup
+
+```bash
+uv sync                      # installs runtime + dev dependencies into .venv
+cp .env.example .env         # fill in whatever keys you have; leave the rest blank
+```
+
+Every setting in `.env` can instead (or additionally) be set live in the Gradio Settings panel — nothing requires a restart. See `.env.example` for the full list of `PONDERCANVAS_*` variables.
+
+## Running locally
+
+```bash
+uv run python -m pondercanvas
+```
+
+Opens a Gradio app at `http://localhost:7860`. Enter a prompt, optionally attach reference images, hit Generate, and watch the per-iteration trace (image, scores, feedback) fill in as the loop runs.
+
+Logs (including full tracebacks for a failed Generate request) are written to `<output_dir>/pondercanvas.log` (`output_dir` defaults to `./.pondercanvas_runs`, see `PONDERCANVAS_OUTPUT_DIR`), rotated at 5MB with 3 backups kept, in addition to the console. Successful runs also get a JSONL summary at `<output_dir>/runs.jsonl`.
+
+## Running tests
+
+```bash
+uv run pytest                                    # offline suite: no API keys, no network, ever
+PONDERCANVAS_RUN_LIVE_TESTS=1 uv run pytest -m live   # end-to-end against real APIs (needs real keys)
+```
+
+The offline suite (`tests/unit/`, `tests/integration_offline/`, `tests/ui/`) mocks every external call — Gemini's client, LiteLLM, `requests` — including full `LoopAgent` executions driven by scripted fake models in `tests/fixtures/fake_llm.py`. Nothing in it needs credentials or a network connection. Live tests (`tests/live/`) are skipped by default and only run when explicitly opted into via the marker and env var above.
+
+## Project layout
+
+```
+src/pondercanvas/
+├── config/            settings.py (env + runtime overlay precedence), constants.py
+├── schemas/           GenerationBrief, GroundingResult, EvaluationResult, RunTrace (Pydantic)
+├── providers/
+│   ├── chat/          build_chat_model(): Gemini natively, others via LiteLLM
+│   ├── image/         ImageProvider interface + registry (Gemini implemented, others stubbed)
+│   ├── structured/     GeminiStructuredVisionProvider (extraction + evaluation)
+│   ├── scoring/         SiglipScorer: optional image/prompt similarity signal blended into evaluation
+│   └── search/         Gemini Google Search grounding + Unsplash reference photos
+├── agent/
+│   ├── extraction.py   pre-loop: prompt/images -> GenerationBrief
+│   ├── tools/           generate_image, evaluate_image, exit_loop (ADK tool functions)
+│   ├── agents.py        builds the GenerationAgent/EvaluationAgent/LoopControlAgent/LoopAgent tree
+│   └── pipeline.py      PonderCanvasPipeline: ties extraction -> grounding -> loop -> RunTrace
+└── ui/                  Gradio app + settings panel + trace renderer
+
+tests/
+├── unit/                one file per provider/tool/schema/settings behavior, fully mocked
+├── integration_offline/ real LoopAgent runs driven by scripted fake models, still offline
+├── fixtures/             FakeImageProvider, FakeStructuredVisionProvider, FakeLlm variants
+├── ui/                   Gradio callback logic tested as plain functions
+└── live/                 real end-to-end run, gated behind the `live` marker
+```
+
+## Extending providers
+
+- **New chat provider**: add one branch in `providers/chat/factory.py::build_chat_model` (any LiteLLM-supported provider is a one-line addition).
+- **New image provider**: add a class implementing `ImageProvider` in `providers/image/`, register it in `providers/image/registry.py`.
+
+## Known limitations
+
+- Iterations are hard-capped at 5.
+- Brief extraction, evaluation, and Google Search grounding always use Gemini, regardless of the chat/image provider you select.
+- Local, single-process, single-user: settings live in server-side memory per browser session, not persisted to disk.
+- OpenAI and Stability image providers are stubbed (raise `NotImplementedError`), pending API keys to implement and test against.
+- Gemini image models occasionally return no image (`finish_reason=NO_IMAGE`) for a given prompt; this currently aborts the whole run rather than retrying. See the [issue tracker](https://github.com/nmhaddad/PonderCanvas/issues) for this and other open items.
+
+## References
+
+- [Introducing Muse: image & video generation](https://ai.meta.com/blog/introducing-muse-image-muse-video-msl) — Meta AI blog post that inspired this project's generate → evaluate → refine loop.
+- [AI Agents for Image and Video Generation](https://www.deeplearning.ai/courses/ai-agents-for-image-and-video-generation) — DeepLearning.AI course that informed several implementation patterns here (structured extraction, image-generation call shape, critic/evaluator design).
+
+## License
+
+See [LICENSE](LICENSE).

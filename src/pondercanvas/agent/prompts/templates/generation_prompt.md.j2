@@ -1,0 +1,40 @@
+## Task
+Render one cohesive scene as a single vivid, narrative description -- not a
+checklist of attributes -- based on the brief below.
+
+## Brief
+- Subject: {{ brief.subject }}
+- Style: {{ brief.style }}
+- Composition: {{ brief.composition }}
+- Mood: {{ brief.mood }}
+- Palette: {{ brief.palette }}
+{% if brief.constraints %}
+- Constraints: {{ brief.constraints | join(', ') }}
+{% endif %}
+{% if brief.notes_from_references %}
+- Reference notes: {{ brief.notes_from_references }}
+{% endif %}
+
+## Rendering guidance
+- Weave the subject, style, composition, mood, and palette into one flowing
+  description of the scene, as a director would describe a shot, rather than
+  a bullet list of disconnected attributes.
+- Be concrete: name materials, textures, and surface details instead of
+  generic nouns (e.g. "weathered oak" rather than "wood").
+- Where the composition implies a camera framing, use precise photographic
+  terms (e.g. "low angle," "shallow depth of field," "wide shot") to make
+  the framing unambiguous.
+- Describe lighting explicitly (direction, quality, and mood) rather than
+  leaving it to be inferred from "mood" alone.
+- Honor every constraint by depicting the desired state directly, rather
+  than only negating what to avoid.
+{% if grounding and grounding.summary_text %}
+
+## Additional grounded context
+{{ grounding.summary_text }}
+{% endif %}
+{% if feedback and feedback.feedback %}
+
+## Feedback to address
+{{ feedback.feedback }}
+{% endif %}

@@ -1,0 +1,16 @@
+## Task
+Extract a structured image-generation brief from the user's request below
+and any attached reference images.
+
+## User request
+{{ user_prompt }}
+
+## Field guidance
+- subject: the main subject/content of the image
+- style: the artistic/visual style (e.g. photorealistic, watercolor, flat vector)
+- composition: layout, framing, and viewpoint
+- mood: the emotional tone/atmosphere
+- palette: dominant colors or color scheme
+- constraints: hard requirements or things to avoid (e.g. "no text", "square crop")
+- notes_from_references: if reference images were attached, what to preserve or draw from them (style, subject, composition); otherwise null
+- search_queries: 1-3 short web search queries that would help find similar or reference imagery for this request

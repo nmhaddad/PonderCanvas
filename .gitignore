@@ -225,3 +225,6 @@ __marimo__/
 outputs/
 *.log
 context/
+
+# Claude Code local (personal) settings -- shared .claude/settings.json is committed
+.claude/settings.local.json

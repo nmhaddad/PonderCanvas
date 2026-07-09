@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv run python -c ' *)",
+      "Bash(mkdir -p config schemas providers/chat providers/image providers/structured providers/search agent/tools agent/steps ui)",
+      "Bash(touch config/__init__.py schemas/__init__.py providers/__init__.py providers/chat/__init__.py providers/image/__init__.py providers/structured/__init__.py providers/search/__init__.py agent/__init__.py agent/tools/__init__.py agent/steps/__init__.py ui/__init__.py)",
+      "Bash(mkdir -p tests/data tests/fixtures tests/unit tests/integration_offline tests/ui tests/live)",
+      "Bash(touch tests/__init__.py tests/fixtures/__init__.py tests/unit/__init__.py tests/integration_offline/__init__.py tests/ui/__init__.py tests/live/__init__.py)",
+      "Bash(uv run *)",
+      "Skill(run)",
+      "Skill(run:*)",
+      "Bash(python -c \"import gradio; print\\(gradio.__version__\\)\")",
+      "Bash(identify media/pondercanvas.png)",
+      "Bash(python -c \"from PIL import Image; im=Image.open\\('media/pondercanvas.png'\\); print\\(im.size\\)\")",
+      "Bash(python -c ' *)",
+      "WebFetch(domain:ai.google.dev)",
+      "Bash(python -)"
+    ]
+  }
+}

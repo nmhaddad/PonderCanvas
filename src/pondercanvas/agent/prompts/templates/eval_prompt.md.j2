@@ -1,0 +1,70 @@
+## Task
+Critically evaluate the attached generated image (first image) against the
+brief below and any reference images provided (remaining images, if any).
+
+## Brief
+- Subject: {{ brief.subject }}
+- Style: {{ brief.style }}
+- Composition: {{ brief.composition }}
+- Mood: {{ brief.mood }}
+- Palette: {{ brief.palette }}
+- Constraints: {{ constraints }}
+
+## Critic stance
+Be a harsh, skeptical critic, not an encouraging one. Most first-attempt
+generations have real flaws -- actively look for them instead of assuming
+the image is correct. Reserve 5 for a genuinely flawless result in that
+dimension, and 4 for very good results with only minor, easy-to-miss
+issues. If you cannot name a specific flaw (or explicitly confirm there
+truly is none) for a criterion, look more closely before scoring it 5 --
+not having noticed a flaw yet is not the same as there being none.
+
+## Scoring criteria (1 = poor, 5 = excellent)
+
+### prompt_adherence
+Does the image match the brief's subject, composition, and constraints?
+- 5: every element of subject, composition, and constraints is present and correct; nothing missing, added, or wrong.
+- 4: matches the brief overall; one small, easy-to-overlook deviation that doesn't change the read of the image.
+- 3: matches the general idea but has a noticeable deviation (wrong composition/framing, a constraint partially ignored, a described element missing).
+- 2: only loosely related to the brief; multiple elements are wrong or missing.
+- 1: does not depict the requested subject, or a hard constraint is violated outright.
+
+Example (5): Brief calls for "a red bicycle leaning against a brick wall, three-quarter view, no people"; the image shows exactly that -- correct color, correct angle, no people present.
+Example (1): Brief's constraints include "no text," but the image contains a visible caption or logo text overlaid on it.
+
+### aesthetic_quality
+Overall visual appeal, independent of whether it matches the brief.
+- 5: professional-grade composition, lighting, and color harmony; nothing you'd want to change.
+- 4: strong and pleasant to look at, but composition or lighting is slightly flat, or a color choice is a bit off.
+- 3: passable but generic-looking; awkward cropping, dull lighting, or muddy colors.
+- 2: visually unappealing; poor composition, harsh/flat lighting, clashing colors.
+- 1: actively unpleasant to look at.
+
+Example (5): Balanced composition with a clear focal point, cohesive color palette, natural-looking lighting with soft shadows.
+Example (2): Subject awkwardly cropped at the edge of frame, harsh flat lighting with blown-out highlights, colors that clash rather than complement.
+
+### technical_quality
+Absence of artifacts; coherent geometry and anatomy.
+- 5: no visible artifacts; anatomy/geometry (hands, faces, object shapes, perspective) is fully coherent.
+- 4: only tiny, hard-to-notice artifacts (e.g. a slightly odd background texture) that don't draw the eye.
+- 3: at least one clearly noticeable artifact or geometry error (e.g. an extra/missing finger, a warped edge, an inconsistent shadow direction).
+- 2: multiple noticeable artifacts, or a prominent anatomy/geometry error (mangled hand, asymmetric face, impossible perspective).
+- 1: severely malformed -- the image looks broken, melted, or incoherent.
+
+Example (5): Hands have five correctly-jointed fingers, faces are symmetric and well-formed, straight lines/edges are actually straight.
+Example (2): A hand has six fingers, or fingers that merge into each other; a background object clips through the subject.
+
+### reference_alignment
+Alignment with any reference images provided (score 5 if none were provided).
+- 5: no reference images were provided, OR the generated image faithfully reflects the reference(s)' style/subject/composition where relevant.
+- 3: captures some but not all of what the reference(s) establish (e.g. right subject, wrong style).
+- 1: reference images were provided but are effectively ignored -- the result looks unrelated to them.
+
+Example (5, with references provided): References show a specific brand's logo style and color scheme; the generated image reuses that same color scheme and visual motif.
+Example (1, with references provided): References show a watercolor illustration style; the generated image is photorealistic and ignores that style entirely.
+
+## Field semantics
+- overall: the average of all four scores above
+- pass: true if overall >= {{ threshold }}
+- feedback: name the single most impactful flaw and the specific prompt change that would fix it; if the result truly has no notable flaws, "Looks good"
+- threshold: {{ threshold }}
