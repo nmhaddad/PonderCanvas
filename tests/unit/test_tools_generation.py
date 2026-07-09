@@ -83,6 +83,63 @@ class TestGenerateImageTool:
 
         assert provider.calls[0]["reference_images"] == [b"ref1", b"ref2"]
 
+    def test_revision_feeds_previous_image_back_as_reference(self, tmp_path):
+        # The core of iterative refinement: once there's a prior attempt and
+        # feedback, the model must see its own last image (so it can edit it)
+        # rather than regenerating blind and re-rolling the same flaw.
+        provider = FakeImageProvider()
+        tool = make_generate_image_tool(provider, tmp_path)
+        ctx = FakeToolContext({sk.BRIEF: _brief_dict()})
+
+        tool(ctx)  # iteration 0: writes iteration_0.png (b"fake-png")
+        ctx.state[sk.LAST_EVALUATION] = {"feedback": "add a strap to the camera"}
+        tool(ctx)  # iteration 1: revision
+
+        assert provider.calls[1]["reference_images"] == [b"fake-png"]
+
+    def test_revision_drops_user_references_and_uses_only_previous_image(self, tmp_path):
+        # User-supplied references are for the first generation only; later
+        # passes refine the model's own previous output, not the references.
+        provider = FakeImageProvider()
+        tool = make_generate_image_tool(provider, tmp_path)
+        ctx = FakeToolContext(
+            {sk.BRIEF: _brief_dict(), sk.REFERENCE_IMAGE_BYTES: [b"ref1", b"ref2"]}
+        )
+
+        tool(ctx)
+        assert provider.calls[0]["reference_images"] == [b"ref1", b"ref2"]
+
+        ctx.state[sk.LAST_EVALUATION] = {"feedback": "fix the camera mount"}
+        tool(ctx)
+        assert provider.calls[1]["reference_images"] == [b"fake-png"]
+
+    def test_revision_prompt_frames_feedback_as_corrections_to_previous_image(self, tmp_path):
+        provider = FakeImageProvider()
+        tool = make_generate_image_tool(provider, tmp_path)
+        ctx = FakeToolContext({sk.BRIEF: _brief_dict()})
+
+        tool(ctx)
+        ctx.state[sk.LAST_EVALUATION] = {"feedback": "add a strap to the camera"}
+        tool(ctx)
+
+        prompt = provider.calls[1]["prompt"]
+        assert "Corrections to apply" in prompt
+        assert "previous attempt" in prompt
+        assert "add a strap to the camera" in prompt
+
+    def test_first_iteration_does_not_pass_a_previous_image(self, tmp_path):
+        # No prior attempt yet: nothing to revise, only real references flow.
+        provider = FakeImageProvider()
+        tool = make_generate_image_tool(provider, tmp_path)
+        ctx = FakeToolContext(
+            {sk.BRIEF: _brief_dict(), sk.REFERENCE_IMAGE_BYTES: [b"ref1"]}
+        )
+
+        tool(ctx)
+
+        assert provider.calls[0]["reference_images"] == [b"ref1"]
+        assert "Corrections to apply" not in provider.calls[0]["prompt"]
+
     def test_no_reference_images_defaults_to_empty_list(self, tmp_path):
         provider = FakeImageProvider()
         tool = make_generate_image_tool(provider, tmp_path)

@@ -30,10 +30,12 @@ def build_extraction_prompt(user_prompt: str) -> str:
     return _env.get_template("extraction_prompt.md.j2").render(user_prompt=user_prompt).strip()
 
 
-def build_generation_prompt(brief: dict, grounding: dict | None, feedback: dict | None) -> str:
+def build_generation_prompt(
+    brief: dict, grounding: dict | None, feedback: dict | None, revising: bool = False
+) -> str:
     return (
         _env.get_template("generation_prompt.md.j2")
-        .render(brief=brief, grounding=grounding, feedback=feedback)
+        .render(brief=brief, grounding=grounding, feedback=feedback, revising=revising)
         .strip()
     )
 

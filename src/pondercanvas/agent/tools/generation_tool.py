@@ -22,10 +22,29 @@ def make_generate_image_tool(
         brief = state[sk.BRIEF]
         grounding = state.get(sk.GROUNDING_RESULT)
         feedback = state.get(sk.LAST_EVALUATION)
-        prompt = build_generation_prompt(brief, grounding, feedback)
 
-        reference_images = state.get(sk.REFERENCE_IMAGE_BYTES, [])
-        result = image_provider.generate(prompt=prompt, reference_images=reference_images)
+        # On refinement iterations, feed the model its own previous image so it
+        # *edits* that image to address the critique, rather than regenerating a
+        # fresh scene from the brief and re-rolling the same flaw. Critique text
+        # alone can't fix a specific rendered artifact the model never sees --
+        # e.g. "add a strap to the floating camera" only lands if the model is
+        # looking at the camera it drew.
+        previous_image_path = state.get(sk.LAST_IMAGE_PATH)
+        revising = bool(feedback and feedback.get("feedback") and previous_image_path)
+        prompt = build_generation_prompt(brief, grounding, feedback, revising=revising)
+
+        if revising:
+            # After the first pass, refine the model's own previous output
+            # directly: feed back ONLY that image, not the user's/grounding
+            # references. The first render already absorbed the references;
+            # re-supplying them here pulls the edit back toward them instead of
+            # fixing the specific artifact in the last result. So the user's
+            # reference images are used for the first generation only.
+            generation_images = [Path(previous_image_path).read_bytes()]
+        else:
+            generation_images = list(state.get(sk.REFERENCE_IMAGE_BYTES, []))
+
+        result = image_provider.generate(prompt=prompt, reference_images=generation_images)
 
         iterations = list(state.get(sk.ITERATIONS, []))
         idx = len(iterations)

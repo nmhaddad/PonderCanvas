@@ -1,6 +1,15 @@
+{% if revising %}
+## Task
+This is a revision pass. Your previous attempt at this scene is the image
+provided. Edit THAT image to fix the specific problems listed under "Corrections
+to apply" below. Preserve everything that already works -- keep the same subject,
+framing, style, palette, and overall composition -- and change only what the
+corrections call for.
+{% else %}
 ## Task
 Render one cohesive scene as a single vivid, narrative description -- not a
 checklist of attributes -- based on the brief below.
+{% endif %}
 
 ## Brief
 - Subject: {{ brief.subject }}
@@ -34,7 +43,18 @@ checklist of attributes -- based on the brief below.
 {{ grounding.summary_text }}
 {% endif %}
 {% if feedback and feedback.feedback %}
+{% if revising %}
+
+## Corrections to apply
+The evaluation of your previous attempt (the image provided) found:
+
+{{ feedback.feedback }}
+
+Make these corrections directly and completely. Do not reintroduce this problem
+elsewhere in the image, and do not undo details that were already correct.
+{% else %}
 
 ## Feedback to address
 {{ feedback.feedback }}
+{% endif %}
 {% endif %}
