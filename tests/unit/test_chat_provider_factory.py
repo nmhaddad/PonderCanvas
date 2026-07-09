@@ -21,7 +21,17 @@ class TestBuildChatModel:
         settings = _effective(chat_provider="gemini", google_api_key="g-secret")
         model = build_chat_model(settings)
         assert isinstance(model, Gemini)
-        assert model.client_kwargs == {"api_key": "g-secret"}
+        assert model.client_kwargs["api_key"] == "g-secret"
+
+    def test_gemini_provider_enables_retry_on_rate_limit(self):
+        # Gemini answers 429 RESOURCE_EXHAUSTED on a rate/quota limit; the
+        # client only retries when http_options.retry_options is supplied.
+        settings = _effective(chat_provider="gemini", google_api_key="g-secret")
+        model = build_chat_model(settings)
+        assert isinstance(model, Gemini)
+        retry = model.client_kwargs["http_options"].retry_options
+        assert 429 in retry.http_status_codes
+        assert retry.attempts > 1
 
     def test_openai_provider_returns_lite_llm_with_prefixed_model(self):
         settings = _effective(

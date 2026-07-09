@@ -2,6 +2,7 @@ from google.adk.models import BaseLlm, Gemini
 from google.adk.models.lite_llm import LiteLlm
 
 from pondercanvas.config.settings import EffectiveSettings
+from pondercanvas.providers._gemini import gemini_http_options
 
 _NON_GEMINI_KEY_FIELD = {
     "openai": "openai_api_key",
@@ -16,7 +17,10 @@ def build_chat_model(settings: EffectiveSettings) -> BaseLlm:
     if settings.chat_provider == "gemini":
         return Gemini(
             model=settings.chat_model_id,
-            client_kwargs={"api_key": settings.google_api_key},
+            client_kwargs={
+                "api_key": settings.google_api_key,
+                "http_options": gemini_http_options(),
+            },
         )
 
     key_field = _NON_GEMINI_KEY_FIELD.get(settings.chat_provider)

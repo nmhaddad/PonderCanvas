@@ -3,6 +3,7 @@ from typing import Any
 from google import genai
 from google.genai import types
 
+from pondercanvas.providers._gemini import gemini_http_options
 from pondercanvas.providers._mime import sniff_image_mime
 from pondercanvas.providers.image.base import ImageProvider, ImageResult
 
@@ -69,7 +70,11 @@ class GeminiImageProvider(ImageProvider):
             # still authenticated with a plain API key, no service account/
             # ADC needed. Some models/API-key restrictions only permit one
             # of the two endpoints, so this must be switchable.
-            self._client = genai.Client(api_key=self._api_key, enterprise=self._enterprise)
+            self._client = genai.Client(
+                api_key=self._api_key,
+                enterprise=self._enterprise,
+                http_options=gemini_http_options(),
+            )
         return self._client
 
     def generate(self, prompt: str, reference_images: list[bytes], **params: Any) -> ImageResult:

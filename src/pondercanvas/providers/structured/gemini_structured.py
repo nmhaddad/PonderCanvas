@@ -4,6 +4,7 @@ from google import genai
 from google.genai import types
 from pydantic import BaseModel
 
+from pondercanvas.providers._gemini import gemini_http_options
 from pondercanvas.providers._mime import sniff_image_mime
 from pondercanvas.providers.structured.base import StructuredVisionProvider
 
@@ -21,7 +22,9 @@ class GeminiStructuredVisionProvider(StructuredVisionProvider):
     @property
     def client(self) -> genai.Client:
         if self._client is None:
-            self._client = genai.Client(api_key=self._api_key)
+            self._client = genai.Client(
+                api_key=self._api_key, http_options=gemini_http_options()
+            )
         return self._client
 
     def generate_structured[T: BaseModel](
