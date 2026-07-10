@@ -69,25 +69,25 @@ class TestMaxIterationsCap:
 
 class TestApiKeySecretHandling:
     def test_base_secret_str_is_unwrapped_to_plain_str(self):
-        base = _base(google_api_key="secret-from-env")
+        base = _base(gemini_image_api_key="secret-from-env")
         effective = resolve_settings(base)
-        assert effective.google_api_key == "secret-from-env"
-        assert isinstance(effective.google_api_key, str)
+        assert effective.gemini_image_api_key == "secret-from-env"
+        assert isinstance(effective.gemini_image_api_key, str)
 
     def test_overlay_key_overrides_base_key(self):
-        base = _base(google_api_key="env-key")
-        overlay = RuntimeSettingsOverlay(google_api_key="ui-typed-key")
+        base = _base(gemini_image_api_key="env-key")
+        overlay = RuntimeSettingsOverlay(gemini_image_api_key="ui-typed-key")
         effective = resolve_settings(base, overlay)
-        assert effective.google_api_key == "ui-typed-key"
+        assert effective.gemini_image_api_key == "ui-typed-key"
 
     def test_missing_key_is_none(self):
         effective = resolve_settings(_base())
         assert effective.openai_api_key is None
 
     def test_repr_of_app_settings_does_not_leak_secret(self):
-        base = _base(google_api_key="super-secret-value")
+        base = _base(gemini_image_api_key="super-secret-value")
         assert "super-secret-value" not in repr(base)
-        assert "super-secret-value" not in str(base.google_api_key)
+        assert "super-secret-value" not in str(base.gemini_image_api_key)
 
     def test_unsplash_key_overlay_overrides_base(self):
         base = _base(unsplash_api_key="env-key")
@@ -100,25 +100,23 @@ class TestApiKeySecretHandling:
         assert effective.unsplash_api_key is None
 
 
-class TestGeminiImageApiKeyFallback:
-    def test_falls_back_to_google_api_key_when_not_configured(self):
-        base = _base(google_api_key="shared-key")
+class TestGeminiImageApiKeySetting:
+    # No fallback to another key: chat/extraction/evaluation/search grounding
+    # always use ADC and have no API key setting at all, so there's nothing
+    # left for this to fall back to -- it's a standalone required field for
+    # the Gemini image provider.
+    def test_env_derived_base_is_used(self):
+        base = _base(gemini_image_api_key="image-key")
         effective = resolve_settings(base)
-        assert effective.gemini_image_api_key == "shared-key"
+        assert effective.gemini_image_api_key == "image-key"
 
-    def test_distinct_env_key_is_used_over_the_shared_one(self):
-        base = _base(google_api_key="shared-key", gemini_image_api_key="image-only-key")
-        effective = resolve_settings(base)
-        assert effective.gemini_image_api_key == "image-only-key"
-        assert effective.google_api_key == "shared-key"
-
-    def test_overlay_distinct_key_wins_over_base(self):
-        base = _base(google_api_key="shared-key", gemini_image_api_key="base-image-key")
+    def test_overlay_wins_over_base(self):
+        base = _base(gemini_image_api_key="base-image-key")
         overlay = RuntimeSettingsOverlay(gemini_image_api_key="ui-image-key")
         effective = resolve_settings(base, overlay)
         assert effective.gemini_image_api_key == "ui-image-key"
 
-    def test_both_unset_is_none(self):
+    def test_unset_is_none(self):
         effective = resolve_settings(_base())
         assert effective.gemini_image_api_key is None
 
@@ -158,11 +156,11 @@ class TestDownloadLimitSettings:
 class TestRedaction:
     def test_redacted_masks_all_api_key_fields(self):
         base = _base(
-            google_api_key="g-key", openai_api_key="o-key", anthropic_api_key="a-key"
+            gemini_image_api_key="g-key", openai_api_key="o-key", anthropic_api_key="a-key"
         )
         effective = resolve_settings(base)
         redacted = effective.redacted()
-        assert redacted["google_api_key"] == "***REDACTED***"
+        assert redacted["gemini_image_api_key"] == "***REDACTED***"
         assert redacted["openai_api_key"] == "***REDACTED***"
         assert redacted["anthropic_api_key"] == "***REDACTED***"
         assert redacted["stability_api_key"] is None
@@ -173,12 +171,6 @@ class TestRedaction:
         redacted = effective.redacted()
         assert redacted["unsplash_api_key"] == "***REDACTED***"
 
-    def test_redacted_masks_gemini_image_api_key_fallback_too(self):
-        base = _base(google_api_key="g-key")
-        effective = resolve_settings(base)
-        redacted = effective.redacted()
-        assert redacted["gemini_image_api_key"] == "***REDACTED***"
-
     def test_redacted_preserves_non_secret_fields(self):
         base = _base(chat_provider="anthropic", max_iterations=3)
         effective = resolve_settings(base)
@@ -187,10 +179,10 @@ class TestRedaction:
         assert redacted["max_iterations"] == 3
 
     def test_redacted_does_not_mutate_original(self):
-        base = _base(google_api_key="g-key")
+        base = _base(gemini_image_api_key="g-key")
         effective = resolve_settings(base)
         effective.redacted()
-        assert effective.google_api_key == "g-key"
+        assert effective.gemini_image_api_key == "g-key"
 
 
 class TestRefinementMode:

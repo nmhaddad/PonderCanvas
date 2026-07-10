@@ -14,17 +14,17 @@ class GeminiStructuredVisionProvider(StructuredVisionProvider):
     the resulting structured JSON. Used for both brief extraction and image
     evaluation, independent of the user's chosen chat/image provider."""
 
-    def __init__(self, model_id: str, api_key: str | None):
+    def __init__(self, model_id: str):
         self.model_id = model_id
-        self._api_key = api_key
         self._client: genai.Client | None = None
 
     @property
     def client(self) -> genai.Client:
+        # Always Enterprise/Vertex AI + Application Default Credentials --
+        # see AppSettings' comment near gemini_image_api_key for why this
+        # doesn't cover image generation.
         if self._client is None:
-            self._client = genai.Client(
-                api_key=self._api_key, http_options=gemini_http_options()
-            )
+            self._client = genai.Client(enterprise=True, http_options=gemini_http_options())
         return self._client
 
     def generate_structured[T: BaseModel](

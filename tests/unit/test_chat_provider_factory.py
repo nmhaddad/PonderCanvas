@@ -17,16 +17,19 @@ class TestBuildChatModel:
         assert isinstance(model, Gemini)
         assert model.model == "gemini-2.5-flash"
 
-    def test_gemini_provider_wires_api_key_via_client_kwargs(self):
-        settings = _effective(chat_provider="gemini", google_api_key="g-secret")
+    def test_gemini_provider_always_wires_enterprise_via_client_kwargs(self):
+        # Always ADC/Enterprise mode now, no API key setting at all for this
+        # provider.
+        settings = _effective(chat_provider="gemini")
         model = build_chat_model(settings)
         assert isinstance(model, Gemini)
-        assert model.client_kwargs["api_key"] == "g-secret"
+        assert model.client_kwargs["enterprise"] is True
+        assert "api_key" not in model.client_kwargs
 
     def test_gemini_provider_enables_retry_on_rate_limit(self):
         # Gemini answers 429 RESOURCE_EXHAUSTED on a rate/quota limit; the
         # client only retries when http_options.retry_options is supplied.
-        settings = _effective(chat_provider="gemini", google_api_key="g-secret")
+        settings = _effective(chat_provider="gemini")
         model = build_chat_model(settings)
         assert isinstance(model, Gemini)
         retry = model.client_kwargs["http_options"].retry_options

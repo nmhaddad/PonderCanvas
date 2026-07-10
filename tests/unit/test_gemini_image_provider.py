@@ -127,8 +127,9 @@ class TestGeminiImageProviderGenerate:
         assert calls[0]["response_format"]["aspect_ratio"] == "4:3"
 
     def test_response_modalities_is_image_only_not_text(self, monkeypatch):
-        # Must NOT include TEXT: with TEXT allowed, these models will return a
-        # prose description of the image instead of drawing it.
+        # Must NOT include text: with text allowed, these models will return a
+        # prose description of the image instead of drawing it. Lowercase --
+        # the API 400s on uppercase "IMAGE" (confirmed live 2026-07-10).
         calls: list[dict] = []
         interaction = _FakeInteraction(output_image=_FakeOutputImage(_b64(b"x"), "image/png"))
         _install_fake_client(monkeypatch, interaction, calls)
@@ -136,7 +137,7 @@ class TestGeminiImageProviderGenerate:
         provider = GeminiImageProvider(model_id="m", api_key="k")
         provider.generate("prompt", [])
 
-        assert calls[0]["response_modalities"] == ["IMAGE"]
+        assert calls[0]["response_modalities"] == ["image"]
 
     def test_mime_type_omitted_from_response_format_by_default(self, monkeypatch):
         # ImageResponseFormat.mime_type only ever accepts "image/jpeg" in this
@@ -285,13 +286,18 @@ class TestGeminiImageProviderGenerate:
 
         assert init_calls[0]["enterprise"] is False
 
-    def test_enterprise_true_is_passed_to_client(self, monkeypatch):
+    def test_enterprise_true_raises_instead_of_hitting_the_unsupported_endpoint(self, monkeypatch):
+        # The Interactions API isn't deployed on the Enterprise/Vertex AI
+        # endpoint yet -- it 404s at the host level rather than working. Fail
+        # fast with an actionable message instead of letting that opaque 404
+        # surface from deep inside the SDK.
         calls: list[dict] = []
         init_calls: list[dict] = []
         interaction = _FakeInteraction(output_image=_FakeOutputImage(_b64(b"x"), "image/png"))
         _install_fake_client(monkeypatch, interaction, calls, client_init_calls=init_calls)
 
         provider = GeminiImageProvider(model_id="m", api_key="k", enterprise=True)
-        provider.generate("prompt", [])
+        with pytest.raises(RuntimeError, match="Enterprise/Vertex AI endpoint"):
+            provider.generate("prompt", [])
 
-        assert init_calls[0]["enterprise"] is True
+        assert init_calls == []

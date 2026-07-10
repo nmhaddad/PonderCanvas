@@ -94,28 +94,28 @@ class TestSearchWebTool:
         monkeypatch.setattr(
             research_module,
             "ground_with_search",
-            lambda queries, api_key, model_id: GroundingResult(
+            lambda queries, model_id: GroundingResult(
                 queries_used=queries,
                 summary_text="wet cats have slicked-back fur",
                 citations=[],
             ),
         )
-        tool = make_search_web_tool("g-key", "gemini-3.5-flash")
+        tool = make_search_web_tool("gemini-3.5-flash")
 
         result = tool("wet cat fur")
 
         assert result["summary"] == "wet cats have slicked-back fur"
 
-    def test_passes_query_api_key_and_model_id_through(self, monkeypatch):
+    def test_passes_query_and_model_id_through(self, monkeypatch):
         calls = []
         monkeypatch.setattr(
             research_module,
             "ground_with_search",
-            lambda queries, api_key, model_id: calls.append((queries, api_key, model_id))
+            lambda queries, model_id: calls.append((queries, model_id))
             or GroundingResult(queries_used=queries),
         )
-        tool = make_search_web_tool("g-key", "gemini-3.5-flash")
+        tool = make_search_web_tool("gemini-3.5-flash")
 
         tool("wet cat fur")
 
-        assert calls == [(["wet cat fur"], "g-key", "gemini-3.5-flash")]
+        assert calls == [(["wet cat fur"], "gemini-3.5-flash")]

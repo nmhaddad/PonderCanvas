@@ -13,7 +13,7 @@ from pondercanvas.providers.search.unsplash_search import (
 from pondercanvas.schemas.brief import GenerationBrief
 from pondercanvas.schemas.grounding import GroundingResult, PhotoAttribution
 
-GroundFn = Callable[[list[str], str | None, str], GroundingResult]
+GroundFn = Callable[[list[str], str], GroundingResult]
 SearchPhotosFn = Callable[[str, str, int, float], list[UnsplashPhoto]]
 DownloadPhotosFn = Callable[
     [list[UnsplashPhoto], str, int, int, float], list[tuple[bytes, UnsplashPhoto]]
@@ -37,7 +37,7 @@ def collect_references(
     queries = brief.search_queries or [brief.subject]
 
     def _ground() -> GroundingResult:
-        return ground_fn(queries, settings.google_api_key, settings.structured_model_id)
+        return ground_fn(queries, settings.structured_model_id)
 
     def _fetch_photos() -> tuple[list[bytes], list[PhotoAttribution]]:
         if not settings.unsplash_api_key:

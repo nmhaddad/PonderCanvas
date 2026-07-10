@@ -44,7 +44,15 @@ class AppSettings(BaseSettings):
     image_model_id: str = DEFAULT_IMAGE_MODEL_ID
     structured_model_id: str = DEFAULT_STRUCTURED_MODEL_ID
 
-    google_api_key: SecretStr | None = None
+    # No Google API key setting: chat/extraction/evaluation/search-grounding
+    # always authenticate via Application Default Credentials (gcloud auth
+    # application-default login, or GOOGLE_APPLICATION_CREDENTIALS) against
+    # the Enterprise/Vertex AI endpoint -- verified working for
+    # generate_content. This does NOT cover image generation: the
+    # Interactions API GeminiImageProvider uses rejects every model on that
+    # endpoint right now ("Unsupported model interaction"), confirmed live
+    # against the real API -- gemini_image_api_key/gemini_image_enterprise
+    # below are unaffected and still needed for the Gemini image provider.
     openai_api_key: SecretStr | None = None
     anthropic_api_key: SecretStr | None = None
     stability_api_key: SecretStr | None = None
@@ -76,7 +84,6 @@ class RuntimeSettingsOverlay(BaseModel):
     image_provider: str | None = None
     image_model_id: str | None = None
 
-    google_api_key: str | None = None
     openai_api_key: str | None = None
     anthropic_api_key: str | None = None
     stability_api_key: str | None = None
@@ -102,7 +109,6 @@ class EffectiveSettings(BaseModel):
     image_model_id: str
     structured_model_id: str
 
-    google_api_key: str | None
     openai_api_key: str | None
     anthropic_api_key: str | None
     stability_api_key: str | None
@@ -156,28 +162,19 @@ def resolve_settings(
     if refinement_mode not in REFINEMENT_MODES:
         refinement_mode = DEFAULT_REFINEMENT_MODE
 
-    google_api_key = _pick(overlay.google_api_key, _secret_value(base.google_api_key))
-    # Gemini image generation sometimes needs a distinct key from the shared
-    # one (e.g. Enterprise/Vertex mode vs. Generative Language API key
-    # restrictions aren't always combinable on one key): fall back to the
-    # shared key only when no distinct one is configured.
-    gemini_image_api_key = (
-        _pick(overlay.gemini_image_api_key, _secret_value(base.gemini_image_api_key))
-        or google_api_key
-    )
-
     return EffectiveSettings(
         chat_provider=_pick(overlay.chat_provider, base.chat_provider),
         chat_model_id=_pick(overlay.chat_model_id, base.chat_model_id),
         image_provider=_pick(overlay.image_provider, base.image_provider),
         image_model_id=_pick(overlay.image_model_id, base.image_model_id),
         structured_model_id=base.structured_model_id,
-        google_api_key=google_api_key,
         openai_api_key=_pick(overlay.openai_api_key, _secret_value(base.openai_api_key)),
         anthropic_api_key=_pick(overlay.anthropic_api_key, _secret_value(base.anthropic_api_key)),
         stability_api_key=_pick(overlay.stability_api_key, _secret_value(base.stability_api_key)),
         unsplash_api_key=_pick(overlay.unsplash_api_key, _secret_value(base.unsplash_api_key)),
-        gemini_image_api_key=gemini_image_api_key,
+        gemini_image_api_key=_pick(
+            overlay.gemini_image_api_key, _secret_value(base.gemini_image_api_key)
+        ),
         gemini_image_enterprise=_pick(
             overlay.gemini_image_enterprise, base.gemini_image_enterprise
         ),

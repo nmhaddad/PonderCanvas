@@ -12,10 +12,13 @@ from pondercanvas.ui.settings_panel import build_settings_panel, fields_to_overl
 
 logger = logging.getLogger(__name__)
 
-_MISSING_GOOGLE_KEY_MESSAGE = (
-    "<p><strong>A Google API key is required</strong> (Settings panel or "
-    "PONDERCANVAS_GOOGLE_API_KEY) for brief extraction, evaluation, and grounding, "
-    "regardless of the chat/image provider chosen.</p>"
+_MISSING_IMAGE_KEY_MESSAGE = (
+    "<p><strong>A Gemini image API key is required</strong> (Settings panel or "
+    "PONDERCANVAS_GEMINI_IMAGE_API_KEY) for the Gemini image provider. Chat, extraction, "
+    "evaluation, and search grounding always authenticate via Application Default "
+    "Credentials instead, but image generation can't -- the Interactions API it uses "
+    "isn't available for any model on that endpoint yet -- so an API key is still "
+    "needed here.</p>"
 )
 
 
@@ -25,8 +28,8 @@ async def _on_generate(prompt: str, files: list[str] | None, *settings_field_val
         overlay = fields_to_overlay(*settings_field_values)
         effective = resolve_settings(app_settings, overlay)
 
-        if not effective.google_api_key:
-            return None, _MISSING_GOOGLE_KEY_MESSAGE
+        if effective.image_provider == "gemini" and not effective.gemini_image_api_key:
+            return None, _MISSING_IMAGE_KEY_MESSAGE
 
         reference_images = [Path(path).read_bytes() for path in (files or [])]
         pipeline = PonderCanvasPipeline(effective)

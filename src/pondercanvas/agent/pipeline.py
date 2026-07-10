@@ -41,7 +41,7 @@ class PonderCanvasPipeline:
     def __init__(self, settings: EffectiveSettings):
         self.settings = settings
         self.structured_provider = GeminiStructuredVisionProvider(
-            model_id=settings.structured_model_id, api_key=settings.google_api_key
+            model_id=settings.structured_model_id
         )
         self.image_provider = get_image_provider(
             settings.image_provider,
@@ -92,10 +92,7 @@ class PonderCanvasPipeline:
                         settings.download_timeout_s,
                     )
                 )
-            if settings.google_api_key:
-                research_tools.append(
-                    make_search_web_tool(settings.google_api_key, settings.structured_model_id)
-                )
+            research_tools.append(make_search_web_tool(settings.structured_model_id))
 
             final_state = await run_thinking_refinement(
                 build_chat_model(settings),

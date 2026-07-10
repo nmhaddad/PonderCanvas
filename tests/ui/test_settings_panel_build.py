@@ -31,10 +31,13 @@ class TestBuildSettingsPanelReflectsEnvDefaults:
         fields = _build_fields_by_name()
         assert fields["siglip_enabled"].value is True
 
-    def test_chat_provider_dropdown_reflects_env_value(self, monkeypatch):
-        monkeypatch.setenv("PONDERCANVAS_CHAT_PROVIDER", "anthropic")
+    def test_chat_model_id_textbox_reflects_env_value(self, monkeypatch):
+        # chat_provider/image_provider dropdowns were removed from the UI
+        # entirely -- provider selection is env-var only now; the underlying
+        # settings/registry still support openai/anthropic/stability.
+        monkeypatch.setenv("PONDERCANVAS_CHAT_MODEL_ID", "gemini-custom")
         fields = _build_fields_by_name()
-        assert fields["chat_provider"].value == "anthropic"
+        assert fields["chat_model_id"].value == "gemini-custom"
 
     def test_max_iterations_slider_reflects_env_value(self, monkeypatch):
         monkeypatch.setenv("PONDERCANVAS_MAX_ITERATIONS", "2")
@@ -48,6 +51,6 @@ class TestBuildSettingsPanelReflectsEnvDefaults:
 
     def test_api_key_fields_stay_blank_even_when_set_in_env(self, monkeypatch):
         # Secrets must never be pre-filled into page HTML/DOM.
-        monkeypatch.setenv("PONDERCANVAS_GOOGLE_API_KEY", "should-not-appear-in-page")
+        monkeypatch.setenv("PONDERCANVAS_GEMINI_IMAGE_API_KEY", "should-not-appear-in-page")
         fields = _build_fields_by_name()
-        assert fields["google_api_key"].value != "should-not-appear-in-page"
+        assert fields["gemini_image_api_key"].value != "should-not-appear-in-page"

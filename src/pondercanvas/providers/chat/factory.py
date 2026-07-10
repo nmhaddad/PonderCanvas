@@ -15,10 +15,12 @@ def build_chat_model(settings: EffectiveSettings) -> BaseLlm:
     provider/key swaps from the Gradio settings panel are trivially correct
     without a restart, and without mutating os.environ."""
     if settings.chat_provider == "gemini":
+        # Always Enterprise/Vertex AI + Application Default Credentials, no
+        # API key -- see AppSettings' comment near gemini_image_api_key.
         return Gemini(
             model=settings.chat_model_id,
             client_kwargs={
-                "api_key": settings.google_api_key,
+                "enterprise": True,
                 "http_options": gemini_http_options(),
             },
         )

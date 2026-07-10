@@ -41,12 +41,23 @@ def _install_fake_client(monkeypatch, response_text, calls):
 
 
 class TestGeminiStructuredVisionProvider:
+    def test_always_uses_enterprise_adc_no_api_key(self, monkeypatch):
+        calls: list[dict] = []
+        raw = json.dumps({"title": "t", "score": 1.0})
+        _install_fake_client(monkeypatch, raw, calls)
+
+        provider = GeminiStructuredVisionProvider(model_id="m")
+        provider.generate_structured("prompt", [], _SampleSchema)
+
+        assert provider.client.init_kwargs["enterprise"] is True
+        assert "api_key" not in provider.client.init_kwargs
+
     def test_parses_response_into_given_schema(self, monkeypatch):
         calls: list[dict] = []
         raw = json.dumps({"title": "a design concept", "score": 4.5})
         _install_fake_client(monkeypatch, raw, calls)
 
-        provider = GeminiStructuredVisionProvider(model_id="m", api_key="k")
+        provider = GeminiStructuredVisionProvider(model_id="m")
         result = provider.generate_structured("describe this", [], _SampleSchema)
 
         assert isinstance(result, _SampleSchema)
@@ -58,7 +69,7 @@ class TestGeminiStructuredVisionProvider:
         raw = json.dumps({"title": "t", "score": 1.0})
         _install_fake_client(monkeypatch, raw, calls)
 
-        provider = GeminiStructuredVisionProvider(model_id="m", api_key="k")
+        provider = GeminiStructuredVisionProvider(model_id="m")
         provider.generate_structured("prompt", [], _SampleSchema)
 
         config = calls[0]["config"]
@@ -70,7 +81,7 @@ class TestGeminiStructuredVisionProvider:
         raw = json.dumps({"title": "t", "score": 1.0})
         _install_fake_client(monkeypatch, raw, calls)
 
-        provider = GeminiStructuredVisionProvider(model_id="structured-model-x", api_key="k")
+        provider = GeminiStructuredVisionProvider(model_id="structured-model-x")
         provider.generate_structured("prompt", [], _SampleSchema)
 
         assert calls[0]["model"] == "structured-model-x"
@@ -80,7 +91,7 @@ class TestGeminiStructuredVisionProvider:
         raw = json.dumps({"title": "t", "score": 1.0})
         _install_fake_client(monkeypatch, raw, calls)
 
-        provider = GeminiStructuredVisionProvider(model_id="m", api_key="k")
+        provider = GeminiStructuredVisionProvider(model_id="m")
         image_bytes = b"\x89PNG\r\n\x1a\nfake"
         provider.generate_structured("prompt", [image_bytes], _SampleSchema)
 
@@ -93,7 +104,7 @@ class TestGeminiStructuredVisionProvider:
         raw = json.dumps({"title": "t", "score": 1.0})
         _install_fake_client(monkeypatch, raw, calls)
 
-        provider = GeminiStructuredVisionProvider(model_id="m", api_key="k")
+        provider = GeminiStructuredVisionProvider(model_id="m")
         provider.generate_structured("just a prompt", [], _SampleSchema)
 
         assert calls[0]["contents"] == ["just a prompt"]

@@ -1,25 +1,14 @@
 import gradio as gr
 
-from pondercanvas.config.constants import (
-    CHAT_PROVIDERS,
-    IMAGE_PROVIDERS,
-    MAX_ITERATIONS_CAP,
-    REFINEMENT_MODES,
-)
+from pondercanvas.config.constants import MAX_ITERATIONS_CAP, REFINEMENT_MODES
 from pondercanvas.config.settings import AppSettings, RuntimeSettingsOverlay
 
 # Order here must match the positional argument order of fields_to_overlay
 # and the order the fields list is spread into event handler inputs in
 # ui/app.py.
 SETTINGS_FIELD_ORDER = (
-    "chat_provider",
     "chat_model_id",
-    "image_provider",
     "image_model_id",
-    "google_api_key",
-    "openai_api_key",
-    "anthropic_api_key",
-    "stability_api_key",
     "unsplash_api_key",
     "gemini_image_api_key",
     "gemini_image_enterprise",
@@ -45,18 +34,14 @@ def build_settings_panel() -> list[gr.components.Component]:
 
     with gr.Accordion("Settings", open=False):
         gr.Markdown(
-            "A Google API key is always required, for brief extraction, evaluation, "
-            "and Google Search grounding -- regardless of the chat/image provider chosen below."
+            "Chat, brief extraction, evaluation, and Google Search grounding always "
+            "authenticate via Application Default Credentials (`gcloud auth "
+            "application-default login`, or `GOOGLE_APPLICATION_CREDENTIALS`) -- no "
+            "Google API key needed or accepted for these. Image generation with the "
+            "Gemini provider is separate and always needs its own API key (see below)."
         )
         with gr.Row():
-            chat_provider = gr.Dropdown(
-                choices=list(CHAT_PROVIDERS), value=defaults.chat_provider, label="Chat provider"
-            )
             chat_model_id = gr.Textbox(value=defaults.chat_model_id, label="Chat model ID")
-        with gr.Row():
-            image_provider = gr.Dropdown(
-                choices=list(IMAGE_PROVIDERS), value=defaults.image_provider, label="Image provider"
-            )
             image_model_id = gr.Textbox(value=defaults.image_model_id, label="Image model ID")
         gr.Markdown(
             "Some Gemini image models require the Gemini Enterprise Agent Platform "
@@ -68,8 +53,7 @@ def build_settings_panel() -> list[gr.components.Component]:
         )
         with gr.Row():
             gemini_image_api_key = gr.Textbox(
-                label="Gemini image API key (optional -- defaults to the Google API key "
-                "below; set this if it needs a different key/restrictions than chat)",
+                label="Gemini image API key (required for the Gemini image provider)",
                 type="password",
             )
             gemini_image_enterprise = gr.Checkbox(
@@ -86,11 +70,6 @@ def build_settings_panel() -> list[gr.components.Component]:
             label="Enable Google image search during generation",
         )
 
-        google_api_key = gr.Textbox(label="Google API key (required)", type="password")
-        with gr.Row():
-            openai_api_key = gr.Textbox(label="OpenAI API key", type="password")
-            anthropic_api_key = gr.Textbox(label="Anthropic API key", type="password")
-            stability_api_key = gr.Textbox(label="Stability API key", type="password")
         unsplash_api_key = gr.Textbox(
             label="Unsplash Access Key (optional -- enables real reference photos, "
             "unsplash.com/developers)",
@@ -139,14 +118,8 @@ def build_settings_panel() -> list[gr.components.Component]:
             )
 
     return [
-        chat_provider,
         chat_model_id,
-        image_provider,
         image_model_id,
-        google_api_key,
-        openai_api_key,
-        anthropic_api_key,
-        stability_api_key,
         unsplash_api_key,
         gemini_image_api_key,
         gemini_image_enterprise,
@@ -160,14 +133,8 @@ def build_settings_panel() -> list[gr.components.Component]:
 
 
 def fields_to_overlay(
-    chat_provider: str,
     chat_model_id: str,
-    image_provider: str,
     image_model_id: str,
-    google_api_key: str,
-    openai_api_key: str,
-    anthropic_api_key: str,
-    stability_api_key: str,
     unsplash_api_key: str,
     gemini_image_api_key: str,
     gemini_image_enterprise: bool,
@@ -186,14 +153,8 @@ def fields_to_overlay(
         return value if value else None
 
     return RuntimeSettingsOverlay(
-        chat_provider=blank_to_none(chat_provider),
         chat_model_id=blank_to_none(chat_model_id),
-        image_provider=blank_to_none(image_provider),
         image_model_id=blank_to_none(image_model_id),
-        google_api_key=blank_to_none(google_api_key),
-        openai_api_key=blank_to_none(openai_api_key),
-        anthropic_api_key=blank_to_none(anthropic_api_key),
-        stability_api_key=blank_to_none(stability_api_key),
         unsplash_api_key=blank_to_none(unsplash_api_key),
         gemini_image_api_key=blank_to_none(gemini_image_api_key),
         gemini_image_enterprise=gemini_image_enterprise,

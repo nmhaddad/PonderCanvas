@@ -5,10 +5,12 @@ from pondercanvas.providers._gemini import gemini_http_options
 from pondercanvas.schemas.grounding import GroundingResult, SourceCitation
 
 
-def ground_with_search(queries: list[str], api_key: str | None, model_id: str) -> GroundingResult:
+def ground_with_search(queries: list[str], model_id: str) -> GroundingResult:
     """Gemini's built-in Google Search grounding tool: returns grounded
-    style/subject text plus citation URLs."""
-    client = genai.Client(api_key=api_key, http_options=gemini_http_options())
+    style/subject text plus citation URLs. Always Enterprise/Vertex AI +
+    Application Default Credentials, no API key -- see AppSettings' comment
+    near gemini_image_api_key."""
+    client = genai.Client(enterprise=True, http_options=gemini_http_options())
     combined_query = "\n".join(queries) if queries else ""
 
     response = client.models.generate_content(

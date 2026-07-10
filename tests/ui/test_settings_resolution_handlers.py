@@ -4,14 +4,8 @@ from pondercanvas.ui.settings_panel import fields_to_overlay
 
 def _call(**overrides):
     defaults = dict(
-        chat_provider="",
         chat_model_id="",
-        image_provider="",
         image_model_id="",
-        google_api_key="",
-        openai_api_key="",
-        anthropic_api_key="",
-        stability_api_key="",
         unsplash_api_key="",
         gemini_image_api_key="",
         gemini_image_enterprise=False,
@@ -33,20 +27,18 @@ class TestFieldsToOverlay:
         # their current value through.
         overlay = _call()
         assert overlay == RuntimeSettingsOverlay(
-            siglip_enabled=False, gemini_image_enterprise=False, gemini_image_search_enabled=True
+            siglip_enabled=False,
+            gemini_image_enterprise=False,
+            gemini_image_search_enabled=True,
         )
 
     def test_blank_string_becomes_none(self):
-        overlay = _call(chat_provider="")
-        assert overlay.chat_provider is None
+        overlay = _call(chat_model_id="")
+        assert overlay.chat_model_id is None
 
     def test_filled_string_passes_through(self):
-        overlay = _call(chat_provider="anthropic")
-        assert overlay.chat_provider == "anthropic"
-
-    def test_google_api_key_passes_through(self):
-        overlay = _call(google_api_key="typed-in-ui")
-        assert overlay.google_api_key == "typed-in-ui"
+        overlay = _call(chat_model_id="gemini-custom")
+        assert overlay.chat_model_id == "gemini-custom"
 
     def test_zero_max_iterations_becomes_none_not_zero(self):
         # 0 is falsy: Gradio's slider default/unset should defer to env/default,
@@ -125,13 +117,15 @@ class TestFieldsToOverlay:
 
 class TestOverlayFeedsIntoResolveSettings:
     def test_overlay_from_ui_fields_overrides_env_defaults(self):
-        overlay = _call(chat_provider="anthropic", google_api_key="ui-key")
-        base = AppSettings(_env_file=None, chat_provider="gemini")  # type: ignore[call-arg]
+        overlay = _call(chat_model_id="gemini-custom", gemini_image_api_key="ui-key")
+        base = AppSettings(_env_file=None, chat_model_id="gemini-3.5-flash")  # type: ignore[call-arg]
         effective = resolve_settings(base, overlay)
-        assert effective.chat_provider == "anthropic"
-        assert effective.google_api_key == "ui-key"
+        assert effective.chat_model_id == "gemini-custom"
+        assert effective.gemini_image_api_key == "ui-key"
 
     def test_all_blank_ui_fields_defer_entirely_to_env(self):
+        # chat_provider has no UI field anymore -- it can only come from env,
+        # confirming the overlay doesn't clobber it with a blank/default.
         overlay = _call()
         base = AppSettings(_env_file=None, chat_provider="openai")  # type: ignore[call-arg]
         effective = resolve_settings(base, overlay)

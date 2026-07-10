@@ -50,7 +50,7 @@ def make_search_reference_images_tool(
     return search_reference_images
 
 
-def make_search_web_tool(api_key: str | None, model_id: str) -> SearchWebTool:
+def make_search_web_tool(model_id: str) -> SearchWebTool:
     def search_web(query: str) -> dict:
         """Searches Google for grounded text context about `query` and returns
         a short summary plus source URLs to weave into the next generation
@@ -58,7 +58,7 @@ def make_search_web_tool(api_key: str | None, model_id: str) -> SearchWebTool:
         something needing factual or visual grounding current context doesn't
         already cover, and skip it otherwise -- do not call it by default or
         "just in case"."""
-        result = ground_with_search([query], api_key, model_id)
+        result = ground_with_search([query], model_id)
         return {"summary": result.summary_text, "sources": [c.url for c in result.citations]}
 
     return search_web

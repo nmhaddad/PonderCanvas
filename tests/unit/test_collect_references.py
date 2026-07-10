@@ -50,7 +50,7 @@ class TestCollectReferencesGrounding:
     def test_runs_text_grounding_with_briefs_search_queries(self):
         ground_calls = []
 
-        def fake_ground(queries, api_key, model_id):
+        def fake_ground(queries, model_id):
             ground_calls.append(queries)
             return GroundingResult(queries_used=queries, summary_text="grounded")
 
@@ -65,7 +65,7 @@ class TestCollectReferencesGrounding:
     def test_falls_back_to_subject_when_no_search_queries(self):
         ground_calls = []
 
-        def fake_ground(queries, api_key, model_id):
+        def fake_ground(queries, model_id):
             ground_calls.append(queries)
             return GroundingResult(queries_used=queries)
 
@@ -78,21 +78,21 @@ class TestCollectReferencesGrounding:
 
         assert ground_calls == [["a red bicycle"]]
 
-    def test_passes_google_api_key_and_structured_model_id_to_ground_fn(self):
+    def test_passes_structured_model_id_to_ground_fn(self):
         calls = []
 
-        def fake_ground(queries, api_key, model_id):
-            calls.append((api_key, model_id))
+        def fake_ground(queries, model_id):
+            calls.append(model_id)
             return GroundingResult(queries_used=queries)
 
         collect_references(
             _brief(),
-            _effective(google_api_key="g-key", structured_model_id="gemini-custom"),
+            _effective(structured_model_id="gemini-custom"),
             ground_fn=fake_ground,
             search_photos_fn=_no_photos_search_fn,
         )
 
-        assert calls == [("g-key", "gemini-custom")]
+        assert calls == ["gemini-custom"]
 
 
 class TestCollectReferencesUnsplash:
@@ -100,7 +100,7 @@ class TestCollectReferencesUnsplash:
         grounding, images = collect_references(
             _brief(),
             _effective(unsplash_api_key=None),
-            ground_fn=lambda q, k, m: GroundingResult(queries_used=q),
+            ground_fn=lambda q, m: GroundingResult(queries_used=q),
             search_photos_fn=lambda *a, **k: (_ for _ in ()).throw(AssertionError("should not run")),
             download_photos_fn=lambda *a, **k: (_ for _ in ()).throw(AssertionError("should not run")),
         )
@@ -122,7 +122,7 @@ class TestCollectReferencesUnsplash:
         grounding, images = collect_references(
             _brief(),
             _effective(unsplash_api_key="u-key", max_reference_downloads=2),
-            ground_fn=lambda q, k, m: GroundingResult(queries_used=q),
+            ground_fn=lambda q, m: GroundingResult(queries_used=q),
             search_photos_fn=fake_search,
             download_photos_fn=fake_download,
         )
@@ -146,7 +146,7 @@ class TestCollectReferencesUnsplash:
         grounding, images = collect_references(
             _brief(),
             _effective(unsplash_api_key="u-key"),
-            ground_fn=lambda q, k, m: GroundingResult(queries_used=q),
+            ground_fn=lambda q, m: GroundingResult(queries_used=q),
             search_photos_fn=lambda *a, **k: [photo_kept, photo_dropped],
             download_photos_fn=fake_download,
         )
@@ -166,7 +166,7 @@ class TestCollectReferencesUnsplash:
         collect_references(
             _brief(search_queries=["q1", "q2", "q3"]),
             _effective(unsplash_api_key="u-key", max_reference_downloads=1),
-            ground_fn=lambda q, k, m: GroundingResult(queries_used=q),
+            ground_fn=lambda q, m: GroundingResult(queries_used=q),
             search_photos_fn=fake_search,
             download_photos_fn=_no_photos_download_fn,
         )
@@ -188,7 +188,7 @@ class TestCollectReferencesUnsplash:
                 max_download_bytes=123,
                 download_timeout_s=9.0,
             ),
-            ground_fn=lambda q, k, m: GroundingResult(queries_used=q),
+            ground_fn=lambda q, m: GroundingResult(queries_used=q),
             search_photos_fn=lambda *a, **k: [_photo()],
             download_photos_fn=fake_download,
         )

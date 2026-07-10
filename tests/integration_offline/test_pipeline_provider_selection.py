@@ -10,7 +10,7 @@ from pondercanvas.providers.structured.gemini_structured import GeminiStructured
 
 
 def _effective(tmp_path, **overrides):
-    defaults = dict(output_dir=tmp_path, google_api_key="fake-key")
+    defaults = dict(output_dir=tmp_path, gemini_image_api_key="fake-key")
     defaults.update(overrides)
     return resolve_settings(AppSettings(_env_file=None, **defaults))  # type: ignore[call-arg]
 
@@ -35,7 +35,7 @@ class TestPipelineProviderSelection:
             _effective(
                 tmp_path,
                 image_provider="gemini",
-                google_api_key="g-key-for-image",
+                gemini_image_api_key="g-key-for-image",
             )
         )
         assert pipeline.image_provider._api_key == "g-key-for-image"
@@ -45,22 +45,20 @@ class TestPipelineProviderSelection:
         )
         assert pipeline2.image_provider._api_key == "o-key-for-image"
 
-    def test_gemini_image_provider_uses_distinct_key_when_configured(self, tmp_path):
-        pipeline = PonderCanvasPipeline(
-            _effective(
-                tmp_path,
-                google_api_key="shared-key",
-                gemini_image_api_key="image-only-key",
-            )
-        )
-        assert pipeline.image_provider._api_key == "image-only-key"
-
     def test_gemini_image_enterprise_flag_propagates_to_provider(self, tmp_path):
         pipeline = PonderCanvasPipeline(_effective(tmp_path, gemini_image_enterprise=True))
         assert pipeline.image_provider._enterprise is True
 
         pipeline2 = PonderCanvasPipeline(_effective(tmp_path, gemini_image_enterprise=False))
         assert pipeline2.image_provider._enterprise is False
+
+    def test_structured_provider_needs_no_api_key_setting(self, tmp_path):
+        # Chat/extraction/evaluation/search grounding always use ADC now --
+        # there's no api_key/enterprise field left on this provider at all,
+        # unlike the Gemini image provider above.
+        pipeline = PonderCanvasPipeline(_effective(tmp_path))
+        assert not hasattr(pipeline.structured_provider, "_api_key")
+        assert not hasattr(pipeline.structured_provider, "_enterprise")
 
     def test_build_chat_model_gemini(self, tmp_path):
         settings = _effective(tmp_path, chat_provider="gemini")

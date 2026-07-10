@@ -63,12 +63,29 @@ class TestGroundWithSearch:
         )
         _install_fake_client(monkeypatch, response, calls)
 
-        result = ground_with_search(["watercolor bicycle"], "k", "model-x")
+        result = ground_with_search(["watercolor bicycle"], "model-x")
 
         assert result.summary_text == "grounded summary"
         assert result.queries_used == ["watercolor bicycle"]
         assert [c.url for c in result.citations] == ["https://example.com/a", "https://example.com/b"]
         assert [c.title for c in result.citations] == ["A", "B"]
+
+    def test_always_uses_enterprise_adc_no_api_key(self, monkeypatch):
+        calls: list[dict] = []
+        response = _FakeResponse(text="summary", candidates=[])
+        captured: dict = {}
+        real_factory = _FakeGenaiClient
+
+        def factory(**kwargs):
+            captured.update(kwargs)
+            return real_factory(response, calls, **kwargs)
+
+        monkeypatch.setattr("pondercanvas.providers.search.gemini_search.genai.Client", factory)
+
+        ground_with_search(["q"], "model-x")
+
+        assert captured["enterprise"] is True
+        assert "api_key" not in captured
 
     def test_skips_chunks_without_web_or_uri(self, monkeypatch):
         calls: list[dict] = []
@@ -78,7 +95,7 @@ class TestGroundWithSearch:
         )
         _install_fake_client(monkeypatch, response, calls)
 
-        result = ground_with_search(["q"], "k", "model-x")
+        result = ground_with_search(["q"], "model-x")
 
         assert result.citations == []
 
@@ -87,7 +104,7 @@ class TestGroundWithSearch:
         response = _FakeResponse(text="summary", candidates=[])
         _install_fake_client(monkeypatch, response, calls)
 
-        result = ground_with_search(["q"], "k", "model-x")
+        result = ground_with_search(["q"], "model-x")
 
         assert result.citations == []
         assert result.summary_text == "summary"
@@ -97,7 +114,7 @@ class TestGroundWithSearch:
         response = _FakeResponse(text="s", candidates=[])
         _install_fake_client(monkeypatch, response, calls)
 
-        ground_with_search(["q"], "k", "model-x")
+        ground_with_search(["q"], "model-x")
 
         config = calls[0]["config"]
         assert config.tools[0].google_search is not None
@@ -107,7 +124,7 @@ class TestGroundWithSearch:
         response = _FakeResponse(text="s", candidates=[])
         _install_fake_client(monkeypatch, response, calls)
 
-        ground_with_search(["q1", "q2"], "k", "model-x")
+        ground_with_search(["q1", "q2"], "model-x")
 
         assert len(calls) == 1
         assert "q1" in calls[0]["contents"]
@@ -118,6 +135,6 @@ class TestGroundWithSearch:
         response = _FakeResponse(text=None, candidates=[])
         _install_fake_client(monkeypatch, response, calls)
 
-        result = ground_with_search(["q"], "k", "model-x")
+        result = ground_with_search(["q"], "model-x")
 
         assert result.summary_text == ""

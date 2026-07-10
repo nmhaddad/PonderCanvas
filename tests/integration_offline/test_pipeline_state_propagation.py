@@ -14,7 +14,7 @@ from tests.fixtures.sample_brief import sample_brief
 
 
 def _effective(tmp_path, **overrides):
-    defaults = dict(output_dir=tmp_path, google_api_key="fake-key")
+    defaults = dict(output_dir=tmp_path, gemini_image_api_key="fake-key")
     defaults.update(overrides)
     return resolve_settings(AppSettings(_env_file=None, **defaults))  # type: ignore[call-arg]
 
@@ -55,7 +55,7 @@ def _patch_pipeline_providers(monkeypatch, *, eval_results, extracted=None, down
     monkeypatch.setattr(
         pipeline_module,
         "GeminiStructuredVisionProvider",
-        lambda model_id, api_key: structured_provider,
+        lambda model_id: structured_provider,
     )
     monkeypatch.setattr(pipeline_module, "get_image_provider", lambda name, **kwargs: image_provider)
     monkeypatch.setattr(
@@ -137,7 +137,8 @@ class TestPipelineStatePropagation:
 
         monkeypatch.setattr(pipeline_module, "run_thinking_refinement", fake_run_thinking_refinement)
 
-        # _effective() defaults to a google_api_key but no unsplash_api_key.
+        # search_web is always attached (ADC-only, no key needed); no
+        # unsplash_api_key means search_reference_images isn't.
         settings = _effective(tmp_path, refinement_mode="thinking")
         pipeline = pipeline_module.PonderCanvasPipeline(settings)
         await pipeline.run("draw a red bicycle", [])
@@ -237,11 +238,11 @@ class TestPipelineStatePropagation:
     async def test_settings_snapshot_redacts_api_key(self, tmp_path, monkeypatch):
         _patch_pipeline_providers(monkeypatch, eval_results=[_passing_eval()])
 
-        settings = _effective(tmp_path, google_api_key="super-secret")
+        settings = _effective(tmp_path, gemini_image_api_key="super-secret")
         pipeline = pipeline_module.PonderCanvasPipeline(settings)
         trace = await pipeline.run("draw a red bicycle", [])
 
-        assert trace.settings_snapshot["google_api_key"] == "***REDACTED***"
+        assert trace.settings_snapshot["gemini_image_api_key"] == "***REDACTED***"
 
     async def test_iteration_prompts_are_recorded(self, tmp_path, monkeypatch):
         _patch_pipeline_providers(monkeypatch, eval_results=[_failing_eval(), _passing_eval()])
