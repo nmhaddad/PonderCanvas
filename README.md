@@ -96,12 +96,8 @@ The offline suite (`tests/unit/`, `tests/integration_offline/`, `tests/ui/`) moc
 
 ## Known limitations
 
-- Iterations are hard-capped at 5.
-- Brief extraction, evaluation, and Google Search grounding always use Gemini, regardless of the chat/image provider you select.
 - Local, single-process, single-user: settings live in server-side memory per browser session, not persisted to disk.
 - OpenAI and Stability image providers are stubbed (raise `NotImplementedError`), pending API keys to implement and test against.
-- Gemini image models occasionally return no output image for a given prompt (safety block, refusal, empty response, etc.); this currently aborts the whole run rather than retrying. See the [issue tracker](https://github.com/nmhaddad/PonderCanvas/issues) for this and other open items.
-- Gemini image generation does not work with `PONDERCANVAS_GEMINI_IMAGE_ENTERPRISE=true`: the Interactions API isn't onboarded on the Enterprise/Vertex AI endpoint yet, only the standard Developer API endpoint. See [docs/google-auth.md](docs/google-auth.md).
 
 ## References
 
