@@ -52,8 +52,6 @@ Both the **chat model** (drives the agent's tool-calling reasoning) and the **im
 
 Selecting `openai`/`stability` as the image provider fails loudly with `NotImplementedError` rather than silently falling back — the seam (`ImageProvider` in `providers/image/base.py`, registered in `providers/image/registry.py`) is ready for a real implementation once there's a key to test against.
 
-See [google-auth.md](google-auth.md) for how Gemini itself authenticates (ADC vs. API key) across these paths.
-
 ## Extending providers
 
 - **New chat provider**: add one branch in `providers/chat/factory.py::build_chat_model` (any LiteLLM-supported provider is a one-line addition).

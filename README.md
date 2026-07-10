@@ -53,14 +53,13 @@ See **[docs/architecture.md](docs/architecture.md)** for the full breakdown: the
 ## Documentation
 
 - **[docs/architecture.md](docs/architecture.md)** — refinement modes, provider abstraction, project layout, extending with a new chat/image provider.
-- **[docs/google-auth.md](docs/google-auth.md)** — how Gemini authenticates across this app (Application Default Credentials for chat/extraction/evaluation/search vs. an API key for image generation), plus troubleshooting for the permission errors each path can produce.
 - **[docs/features.md](docs/features.md)** — Google image search, interaction-ID-based iteration tracking, Unsplash reference photos, SigLIP evaluation scoring, W&B Weave tracing (and a known `weave`/`google-adk` compatibility workaround).
 
 ## Requirements
 
 - Python ≥ 3.12
 - [uv](https://docs.astral.sh/uv/) for dependency management
-- Working Application Default Credentials (`gcloud auth application-default login`, or `GOOGLE_APPLICATION_CREDENTIALS`) plus `GOOGLE_CLOUD_PROJECT` set — used for chat, structured extraction/evaluation, and Google Search grounding regardless of which chat/image provider you pick; see [docs/google-auth.md](docs/google-auth.md)
+- Working Application Default Credentials (`gcloud auth application-default login`, or `GOOGLE_APPLICATION_CREDENTIALS`) plus `GOOGLE_CLOUD_PROJECT` set — used for chat, structured extraction/evaluation, and Google Search grounding regardless of which chat/image provider you pick
 - A Gemini image API key (`PONDERCANVAS_GEMINI_IMAGE_API_KEY`) if you're using the Gemini image provider (the default) — ADC doesn't cover image generation
 - Optionally: an OpenAI key and/or an Anthropic key, depending on which providers you use
 - Optionally: an Unsplash Access Key (unsplash.com/developers) if you want real reference photos alongside text grounding
