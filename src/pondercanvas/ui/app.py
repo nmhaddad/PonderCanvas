@@ -6,6 +6,7 @@ import gradio as gr
 from pondercanvas.agent.pipeline import PonderCanvasPipeline
 from pondercanvas.config.settings import AppSettings, resolve_settings
 from pondercanvas.logging_utils import configure_logging
+from pondercanvas.tracing import configure_tracing
 from pondercanvas.ui.components import render_trace
 from pondercanvas.ui.settings_panel import build_settings_panel, fields_to_overlay
 
@@ -83,6 +84,7 @@ def build_ui() -> gr.Blocks:
 
 def main() -> None:
     configure_logging(AppSettings().output_dir)
+    configure_tracing()
     build_ui().launch()
 
 

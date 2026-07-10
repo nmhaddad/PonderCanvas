@@ -25,6 +25,7 @@ grounding) with no refinement spend at all.
 from collections.abc import Callable
 from typing import Any
 
+import weave
 from google.adk.models import BaseLlm
 from google.adk.runners import InMemoryRunner
 from google.genai import types
@@ -58,6 +59,7 @@ class _FastToolContext:
         self.actions = _FastActions()
 
 
+@weave.op()
 def run_fast_refinement(
     generation_tool: RefinementTool,
     evaluation_tool: RefinementTool,
@@ -77,6 +79,7 @@ def run_fast_refinement(
     return state
 
 
+@weave.op()
 def run_instant_generation(
     generation_tool: RefinementTool,
     initial_state: dict,
@@ -89,6 +92,7 @@ def run_instant_generation(
     return state
 
 
+@weave.op()
 async def run_thinking_refinement(
     chat_model: BaseLlm,
     generation_tool: RefinementTool,

@@ -117,6 +117,10 @@ Opens a Gradio app at `http://localhost:7860`. Enter a prompt, optionally attach
 
 Logs (including full tracebacks for a failed Generate request) are written to `<output_dir>/pondercanvas.log` (`output_dir` defaults to `./.pondercanvas_runs`, see `PONDERCANVAS_OUTPUT_DIR`), rotated at 5MB with 3 backups kept, in addition to the console. Successful runs also get a JSONL summary at `<output_dir>/runs.jsonl`.
 
+### Tracing (W&B Weave)
+
+Optional: set `WANDB_API_KEY` in `.env` (get one at [wandb.ai/authorize](https://wandb.ai/authorize)) to send a full trace of each run — extraction, grounding, every generate/evaluate iteration, and the underlying Gemini/OpenAI/Anthropic calls — to [Weights & Biases Weave](https://weave-docs.wandb.ai/). `WANDB_PROJECT` (`entity/project` format) controls where traces land; see `.env.example`. Leave `WANDB_API_KEY` blank to skip tracing entirely — nothing else changes.
+
 ## Running tests
 
 ```bash

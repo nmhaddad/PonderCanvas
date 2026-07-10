@@ -1,6 +1,8 @@
 from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 
+import weave
+
 from pondercanvas.config.settings import EffectiveSettings
 from pondercanvas.providers.search.gemini_search import ground_with_search
 from pondercanvas.providers.search.unsplash_search import (
@@ -18,6 +20,7 @@ DownloadPhotosFn = Callable[
 ]
 
 
+@weave.op()
 def collect_references(
     brief: GenerationBrief,
     settings: EffectiveSettings,

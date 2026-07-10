@@ -2,6 +2,8 @@ import uuid
 from datetime import UTC, datetime
 from typing import Literal
 
+import weave
+
 from pondercanvas.agent import state_keys as sk
 from pondercanvas.agent.extraction import extract_generation_brief
 from pondercanvas.agent.refinement import (
@@ -55,6 +57,7 @@ class PonderCanvasPipeline:
         key_field = _IMAGE_PROVIDER_KEY_FIELD.get(self.settings.image_provider)
         return getattr(self.settings, key_field) if key_field else None
 
+    @weave.op()
     async def run(self, prompt: str, reference_images: list[bytes]) -> RunTrace:
         settings = self.settings
 

@@ -1,3 +1,4 @@
+import weave
 from pydantic import BaseModel, Field
 
 from pondercanvas.agent.prompts import build_extraction_prompt
@@ -20,6 +21,7 @@ class _ExtractedFields(BaseModel):
     search_queries: list[str] = Field(default_factory=list)
 
 
+@weave.op()
 def extract_generation_brief(
     user_prompt: str,
     reference_images: list[bytes],
