@@ -77,7 +77,9 @@ def build_ui() -> gr.Blocks:
                 output_image = gr.Image(label="Result")
                 trace_html = gr.HTML(label="Iteration trace")
 
-        generate_btn.click(
+        # gradio attaches event listeners dynamically and its wheel omits the
+        # component .pyi stubs, so mypy can't see Button.click
+        generate_btn.click(  # type: ignore[attr-defined]
             _on_generate,
             inputs=[prompt, reference_images, *settings_fields],
             outputs=[output_image, trace_html],
